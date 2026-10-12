@@ -120,11 +120,12 @@ function __dbd_safe(v, depth) {
 }
 `;
 
-  function runnerBody(testsJson, fnName, perTestMs) {
+  function runnerBody(testsJson, fnName, perTestMs, captureValues) {
     return `
 var __dbd_tests = ${testsJson};
 var __dbd_fnName = ${JSON.stringify(fnName)};
 var __dbd_per = ${perTestMs};
+var __dbd_capture = ${captureValues ? 'true' : 'false'};
 
 function __dbd_sleep(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
 
@@ -148,7 +149,7 @@ function __dbd_runOne(test) {
       return {
         name: test.name, passed: ok,
         expected: __dbd_safe(test.expected),
-        actual: ok ? undefined : __dbd_safe(actual),
+        actual: (ok && !__dbd_capture) ? undefined : __dbd_safe(actual),
         ms: Date.now() - t0
       };
     })
@@ -191,7 +192,7 @@ function __dbd_runAll() {
    *  Engines                                                            *
    * ------------------------------------------------------------------ */
 
-  function buildWorkerSource(code, fnName, tests, perTestMs) {
+  function buildWorkerSource(code, fnName, tests, perTestMs, captureValues) {
     const prelude = HELPERS + '\n;\n' +
       "var __dbd_fatal = null;\n" +
       "self.onerror = function (msg, src, line, col, err) {\n" +
@@ -199,7 +200,7 @@ function __dbd_runAll() {
       "  try { self.postMessage({ dbd: 'result', fatal: 'Uncaught ' + text + (line ? ' (line ' + line + ')' : ''), results: [], logs: __dbd_logs }); } catch (e) {}\n" +
       "  return true;\n" +
       "};\n;\n";
-    const body = runnerBody(JSON.stringify(tests), fnName, perTestMs);
+    const body = runnerBody(JSON.stringify(tests), fnName, perTestMs, captureValues);
     const tail = "\n;\n" +
       "__dbd_runAll().then(function (results) {\n" +
       "  try { self.postMessage({ dbd: 'result', results: results, logs: __dbd_logs }); } catch (e) {}\n" +
@@ -211,14 +212,14 @@ function __dbd_runAll() {
     return { src: splitGuard(src), linesBefore };
   }
 
-  function buildIframeDoc(code, fnName, tests, perTestMs, runId) {
+  function buildIframeDoc(code, fnName, tests, perTestMs, captureValues, runId) {
     const prelude = HELPERS + '\n;\n' +
       "window.onerror = function (msg, src, line, col, err) {\n" +
       "  var text = (err && err.stack) ? String(err.stack).split('\\n')[0] : String(msg);\n" +
       "  try { parent.postMessage({ dbd: 'dbd-result', runId: '" + runId + "', fatal: 'Uncaught ' + text + (line ? ' (line ' + line + ')' : ''), results: [], logs: __dbd_logs }, '*'); } catch (e) {}\n" +
       "  return true;\n" +
       "};\n;\n";
-    const body = runnerBody(JSON.stringify(tests), fnName, perTestMs);
+    const body = runnerBody(JSON.stringify(tests), fnName, perTestMs, captureValues);
     const tail =
       "\n;\n" + body + "\n" +
       "__dbd_runAll().then(function (results) {\n" +
@@ -234,13 +235,13 @@ function __dbd_runAll() {
     return { doc, linesBefore };
   }
 
-  function runInWorker(code, fnName, tests, perTestMs, hardMs) {
+  function runInWorker(code, fnName, tests, perTestMs, hardMs, captureValues) {
     return new Promise((resolve) => {
       let url = null;
       let worker = null;
       let built;
       try {
-        built = buildWorkerSource(code, fnName, tests, perTestMs);
+        built = buildWorkerSource(code, fnName, tests, perTestMs, captureValues);
         url = URL.createObjectURL(new Blob([built.src], { type: 'application/javascript' }));
         worker = new Worker(url);
       } catch (err) {
@@ -271,7 +272,7 @@ function __dbd_runAll() {
     });
   }
 
-  function runInIframe(code, fnName, tests, perTestMs, hardMs) {
+  function runInIframe(code, fnName, tests, perTestMs, hardMs, captureValues) {
     return new Promise((resolve) => {
       const runId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       const iframe = document.createElement('iframe');
@@ -296,16 +297,16 @@ function __dbd_runAll() {
         finish({ timedOut: true, fatal: 'Execution did not finish in ' + hardMs + ' ms — likely an infinite loop.', results: [], logs: [] });
       }, hardMs);
       window.addEventListener('message', onMsg);
-      const built = buildIframeDoc(code, fnName, tests, perTestMs, runId);
+      const built = buildIframeDoc(code, fnName, tests, perTestMs, captureValues, runId);
       iframe.srcdoc = built.doc;
       document.body.appendChild(iframe);
     });
   }
 
-  async function runDirect(code, fnName, tests, perTestMs) {
+  async function runDirect(code, fnName, tests, perTestMs, captureValues) {
     try {
       const src = HELPERS + '\n;\n' + String(code) + '\n;\n' +
-        runnerBody(JSON.stringify(tests), fnName, 0) + '\nreturn __dbd_runAll();';
+        runnerBody(JSON.stringify(tests), fnName, 0, captureValues) + '\nreturn __dbd_runAll();';
       const factory = new Function('return (async function () {\n' + src + '\n})()');
       const results = await factory();
       return { ok: true, engine: 'function', timedOut: false, fatal: null, results: results, logs: [] };
@@ -414,17 +415,17 @@ function __dbd_runAll() {
     }
     let engine = await detectCodeEngine();
     if (engine === 'worker') {
-      const r = await runInWorker(code, fnName, tests, perTestMs, hardMs);
+      const r = await runInWorker(code, fnName, tests, perTestMs, hardMs, opts.captureValues);
       if (!r.ok) engine = (await detectDomEngine()) === 'iframe' ? 'iframe' : (probeFunction() ? 'function' : 'none');
       else return r;
     }
     if (engine === 'iframe') {
-      const r = await runInIframe(code, fnName, tests, perTestMs, hardMs);
+      const r = await runInIframe(code, fnName, tests, perTestMs, hardMs, opts.captureValues);
       if (r.ok) return r;
       engine = probeFunction() ? 'function' : 'none';
     }
     if (engine === 'function') {
-      const r = await runDirect(code, fnName, tests, perTestMs);
+      const r = await runDirect(code, fnName, tests, perTestMs, opts.captureValues);
       if (r.ok) return r;
     }
     return {
@@ -520,11 +521,37 @@ function __dbd_runAll() {
     });
   }
 
+  /* ------------------------------------------------------------------ *
+   *  Single-call run (the console "Run ▶" — returns the value + logs)   *
+   * ------------------------------------------------------------------ */
+
+  async function runOnce(opts) {
+    const res = await runCodeTests({
+      code: opts.code || '',
+      fnName: opts.fnName || '',
+      tests: [{ name: 'call', args: opts.args || [] }],
+      captureValues: true,
+      perTestMs: typeof opts.perTestMs === 'number' ? opts.perTestMs : 5000,
+      hardMs: typeof opts.hardMs === 'number' ? opts.hardMs : 10000
+    });
+    const r = (res.results && res.results[0]) || {};
+    return {
+      engine: res.engine || null,
+      fatal: res.fatal || null,
+      timedOut: !!res.timedOut,
+      error: r.error || null,
+      value: r.actual,
+      ms: r.ms != null ? r.ms : null,
+      logs: res.logs || []
+    };
+  }
+
   DBD.runner = {
     info,
     detectCodeEngine,
     detectDomEngine,
     runCodeTests,
-    runDomChecks
+    runDomChecks,
+    runOnce
   };
 })();

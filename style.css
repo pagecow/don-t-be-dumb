@@ -544,3 +544,48 @@ body {
   .dbd-shell { grid-template-columns: 236px minmax(0, 1fr); }
   .dbd-aside { display: none; }
 }
+
+/* ---------------- console run ---------------- */
+
+.dbd-runbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.dbd-runbar .dbd-pane-label { flex: none; }
+.dbd-run-case { max-width: 240px; font-size: 12px; }
+.dbd-run-args {
+  flex: 1 1 220px;
+  min-width: 150px;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.dbd-run-out { margin-bottom: 14px; }
+.dbd-run-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+.dbd-run-value {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--code-bg, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 11px;
+  max-height: 240px;
+  overflow: auto;
+}
+.dbd-run-value.is-error { border-color: var(--danger); color: var(--danger); }

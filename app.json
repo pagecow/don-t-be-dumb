@@ -1,7 +1,7 @@
 {
   "id": "dev.tjmccarty.dont-be-dumb",
   "name": "Don't Be Dumb",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI-generated coding drills for developers who refuse to let AI make them dumb. Interview-style tasks with real tests, a rot radar of your skills, and a local history so you never get the same drill twice.",
   "icon": "icon.svg",
   "entry": "index.html",

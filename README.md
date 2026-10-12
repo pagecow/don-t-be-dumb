@@ -29,7 +29,7 @@ Built as a ChatOSS app (`.aip`).
 
 ## Install
 
-1. Download `app-v1.0.0.aip` from [Releases](../../releases).
+1. Download the latest `app-*.aip` from [Releases](../../releases).
 2. Open it with ChatOSS (or drop it on the Apps app).
 
 Requires ChatOSS and an AI model configured in its Models section.

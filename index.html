@@ -114,7 +114,7 @@
           </div>
           <div class="spacer"></div>
           <div class="btn-row">
-            <button class="btn btn-primary" id="btn-run" title="Run your code against the tests (⌘/Ctrl + Enter)">Run tests <span class="faint">⌘↵</span></button>
+            <button class="btn btn-primary" id="btn-run" title="Submit your code to the full test suite (⌘/Ctrl + Enter)">Run all tests <span class="faint">⌘↵</span></button>
             <button class="btn btn-danger" id="btn-giveup">Give up</button>
           </div>
         </div>
@@ -125,6 +125,13 @@
           <div class="dbd-work-main">
             <div class="dbd-editor-tabs" id="editor-tabs" hidden></div>
             <div class="dbd-editor-host" id="editor-host"></div>
+            <div class="dbd-runbar" id="run-bar" hidden>
+              <span class="dbd-pane-label">run</span>
+              <select class="select dbd-run-case" id="run-case" title="Which test case's arguments to use"></select>
+              <input class="input dbd-run-args" id="run-args" spellcheck="false" autocomplete="off"
+                placeholder="arguments — JSON array, e.g. [1, [2, 3]]" />
+              <button class="btn btn-sm" id="btn-run-once" title="Run your function once with these arguments (Enter)">Run ▶</button>
+            </div>
             <div class="dbd-quiz" id="quiz-host" hidden></div>
           </div>
           <div class="dbd-work-side" id="preview-pane" hidden>
@@ -133,6 +140,8 @@
             <div class="hint">renders on every keystroke (debounced)</div>
           </div>
         </div>
+
+        <div class="dbd-run-out" id="run-host" hidden></div>
 
         <div class="dbd-results" id="results-host">
           <div class="empty">

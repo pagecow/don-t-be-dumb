@@ -60,6 +60,7 @@
     lastResults: null,
     aiBusy: false,
     running: false,
+    runOnceBusy: false,
     saveTimer: null,
     previewTimer: null
   };
@@ -456,6 +457,9 @@
     preview.hidden = true;
     tabs.hidden = true;
     tabs.innerHTML = '';
+    $('run-bar').hidden = true;
+    $('run-host').hidden = true;
+    $('run-host').innerHTML = '';
 
     const { task, attempt } = c;
 
@@ -473,6 +477,7 @@
       }
       const spacer = el('div', 'spacer');
       tabs.appendChild(spacer);
+      setupRunBar(task);
       return;
     }
 
@@ -517,6 +522,137 @@
       host.hidden = true;
       quiz.hidden = false;
       renderQuiz();
+    }
+  }
+
+  /* ---------------- console run (single call, with logs) ---------------- */
+
+  function setupRunBar(task) {
+    const bar = $('run-bar');
+    bar.hidden = false;
+    const sel = $('run-case');
+    sel.innerHTML = '';
+    const tests = task.tests || [];
+    tests.forEach((t, i) => {
+      const o = el('option');
+      o.value = String(i);
+      o.textContent = (i + 1) + '. ' + (t.name || ('case ' + (i + 1)));
+      sel.appendChild(o);
+    });
+    if (tests.length) {
+      sel.value = '0';
+      fillRunArgs(0);
+    } else {
+      sel.innerHTML = '<option value="">(no cases)</option>';
+      $('run-args').value = '[]';
+    }
+  }
+
+  function fillRunArgs(i) {
+    const c = S.current;
+    if (!c || !c.task.tests || !c.task.tests[i]) return;
+    $('run-args').value = JSON.stringify(c.task.tests[i].args || []);
+  }
+
+  function fmtRunValue(v) {
+    if (v === undefined) return 'undefined';
+    try {
+      const pretty = (typeof v === 'object' && v !== null) ? 2 : 0;
+      const s = JSON.stringify(v, null, pretty);
+      return s === undefined ? String(v) : s;
+    } catch (e) { return String(v); }
+  }
+
+  function renderRunPanel(data) {
+    const host = $('run-host');
+    host.hidden = false;
+    host.innerHTML = '';
+    if (data.running) {
+      const head = el('div', 'dbd-run-head');
+      head.appendChild(el('div', 'spinner'));
+      head.appendChild(el('span', 'dbd-results-summary', 'Running with ' + JSON.stringify(data.args || []) + ' …'));
+      host.appendChild(head);
+      return;
+    }
+    if (data.badArgs) {
+      const head = el('div', 'dbd-run-head');
+      head.appendChild(el('span', 'badge badge-danger', 'args'));
+      head.appendChild(el('span', 'dbd-results-summary', data.badArgs));
+      host.appendChild(head);
+      return;
+    }
+    const r = data;
+    const head = el('div', 'dbd-run-head');
+    if (r.fatal || r.timedOut) {
+      head.appendChild(el('span', 'badge badge-danger', r.timedOut ? 'timed out' : 'runner error'));
+      head.appendChild(el('span', 'dbd-results-summary', 'the code did not finish'));
+    } else if (r.error) {
+      head.appendChild(el('span', 'badge badge-danger', 'threw'));
+      head.appendChild(el('span', 'dbd-results-summary', 'your function threw an error'));
+    } else {
+      head.appendChild(el('span', 'badge badge-success', 'ran'));
+      head.appendChild(el('span', 'dbd-results-summary', 'returned in ' + (r.ms != null ? r.ms + ' ms' : '?') + ' — logs below'));
+    }
+    if (r.engine) head.appendChild(el('span', 'hint', 'runner: ' + r.engine));
+    host.appendChild(head);
+
+    if (r.fatal) host.appendChild(el('div', 'dbd-console', String(r.fatal)));
+    if (r.timedOut && !r.fatal) {
+      host.appendChild(el('div', 'dbd-console', 'Execution did not finish in time — likely an infinite loop (the runner was terminated).'));
+    }
+
+    if (!r.fatal && !r.timedOut) {
+      const val = el('div', 'dbd-run-value' + (r.error ? ' is-error' : ''));
+      val.textContent = r.error ? '✗ ' + r.error : '→ ' + fmtRunValue(r.value);
+      host.appendChild(val);
+    }
+
+    const logs = r.logs || [];
+    if (logs.length) {
+      host.appendChild(el('div', 'dbd-pane-label', 'console'));
+      const pre = el('div', 'dbd-console');
+      pre.textContent = logs.join('\n');
+      host.appendChild(pre);
+    } else {
+      host.appendChild(el('div', 'dbd-run-note', 'no console output — console.log() anything in your code and it shows up here'));
+    }
+    if (r.note) host.appendChild(el('div', 'dbd-run-note', r.note));
+  }
+
+  async function runOnceUI() {
+    const c = S.current;
+    if (!c || (c.task.kind !== 'code' && c.task.kind !== 'bug') || S.runOnceBusy) return;
+    let args;
+    try {
+      args = JSON.parse($('run-args').value || '[]');
+      if (!Array.isArray(args)) throw new Error('not an array');
+    } catch (e) {
+      renderRunPanel({ badArgs: 'arguments must be a JSON array — e.g. [1, "a", [2, 3]]' });
+      return;
+    }
+    S.runOnceBusy = true;
+    const btn = $('btn-run-once');
+    btn.disabled = true;
+    renderRunPanel({ running: true, args });
+    try {
+      await saveAttemptCode();
+      let code = S.editor ? S.editor.getValue() : '';
+      let note = '';
+      if (c.task.language === 'ts') {
+        const t = await DBD.ts.transpile(code);
+        if (t.diagnostics && t.diagnostics.length) {
+          note = 'TypeScript syntax notes: ' + t.diagnostics.slice(0, 2).map((d) => d.message).join(' · ');
+        }
+        code = t.js;
+      }
+      const res = await DBD.runner.runOnce({ code, fnName: c.task.function_name, args });
+      res.note = note;
+      renderRunPanel(res);
+    } catch (e) {
+      renderRunPanel({ fatal: String((e && e.message) || e), logs: [] });
+    } finally {
+      S.runOnceBusy = false;
+      btn.disabled = false;
     }
   }
 
@@ -1268,6 +1404,15 @@
     $('btn-reveal-solution').onclick = revealSolution;
     $('btn-show-explanation').onclick = toggleExplanation;
     $('btn-ai-review').onclick = requestReview;
+
+    $('btn-run-once').onclick = runOnceUI;
+    $('run-case').onchange = () => fillRunArgs(parseInt($('run-case').value, 10) || 0);
+    $('run-args').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runOnceUI();
+      }
+    });
 
     $('model-select').onchange = () => {
       S.model = $('model-select').value || null;
