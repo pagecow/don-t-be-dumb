@@ -16,3 +16,15 @@ Durable lessons recorded by coding agents working in this project. The engine re
 - SQLite db name: `dont_be_dumb`. Generation prompts get the last 30 task titles+tags ("do not repeat") plus a client-side fingerprint dedupe.
 - No `confirm()`/`alert()` in the sandbox — every destructive flow uses the platform `.overlay`/`.modal`.
 - A temporary boot self-test (writes PASS/FAIL into `#footer-note` + `document.title`, read back via preview_check) is a reliable way to verify runtime capabilities — the preview snapshot timing is racy, so retry preview_check until a late snapshot appears.
+
+## 2026-10-12 18:22:26
+
+## v1.1.0 — console Run (single-call execution with logs)
+
+- Code/bug drills now have a Run bar under the editor: test-case picker prefills the args input, any JSON args can be typed, and `DBD.runner.runOnce({code, fnName, args})` returns `{value, logs, error, fatal, timedOut, ms}` — the return value is now ALWAYS captured via the runner's `captureValues` flag (threaded through worker/iframe/function engines). "Run all tests" is unchanged and remains the only thing that counts as an attempt. Release: v1.1.0 on GitHub with app-v1.1.0.aip/.zip; store listing updates from the latest release.
+- 🔴 Lesson for temporary boot self-tests: (1) they must POLL until `wireEvents()` has run (`typeof $('btn-…').onclick === 'function'`) before simulating clicks — the click race against boot wiring caused a false stall; (2) NEVER write textContent onto container elements like `#streak-card` — it destroys child ids (`#streak-count`) and later `renderStats()` throws; (3) report progress into an element EARLY in the visible text (the streak card region) so preview_check snapshots can't miss it. Verified end-to-end signature: `once=PASS view=ok wired=ok ui=PASS`.
+- The Create preview DB is the SAME namespaced SQLite as the installed app — the preview shows real user data (drills generated in the dock app).
+
+## 2026-10-12 18:23:03
+
+- 🔴 `publish_app` zips the ENTIRE app folder (including `tmp/scratch/`) and enforces the 20 MB unpacked limit — release artifacts kept there (`*.aip` + `*.zip` ≈ 2.4 MB each) pushed the v1.1.0 dock publish to 24.2 MB and failed. Delete release artifacts from `tmp/scratch/` right after `gh release upload`; keep the runtime payload ≈ 14.2 MB (libs/ dominates). The GitHub release zips only runtime files (app.json, index.html, style.css, icon.svg, js/, libs/) — that one was fine at 15.0 MB unpacked.

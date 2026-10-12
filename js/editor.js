@@ -245,8 +245,52 @@
       }
     }
 
+    function toggleCommentText(block, lang) {
+      if (lang === 'css' || lang === 'html') {
+        const open = lang === 'css' ? '/*' : '<!--';
+        const close = lang === 'css' ? '*/' : '-->';
+        const t = block.trim();
+        if (t.startsWith(open) && t.endsWith(close)) {
+          const inner = t.slice(open.length, t.length - close.length).replace(/^\s+|\s+$/g, '');
+          return { text: inner, selStart: 0, selEnd: inner.length };
+        }
+        const text = open + ' ' + block + ' ' + close;
+        return { text, selStart: 0, selEnd: text.length };
+      }
+      // js / ts — per-line //
+      const lines = block.split('\n');
+      const nonEmpty = lines.filter((l) => l.trim().length > 0);
+      const allCommented = nonEmpty.length > 0 && nonEmpty.every((l) => /^\s*\/\//.test(l));
+      const outLines = lines.map((ln) => {
+        if (!ln.trim().length) return ln;
+        if (allCommented) return ln.replace(/^(\s*)\/\/ ?/, '$1');
+        const m = ln.match(/^(\s*)/);
+        return m[1] + '// ' + ln.slice(m[1].length);
+      });
+      const text = outLines.join('\n');
+      return { text, selStart: 0, selEnd: text.length };
+    }
+
+    function toggleLineComment() {
+      const v = area.value;
+      const s = Math.min(area.selectionStart, area.selectionEnd);
+      const e = Math.max(area.selectionStart, area.selectionEnd);
+      const [ls] = lineInfo(s);
+      const endPos = (e > s && v[e - 1] === '\n') ? e - 1 : e;
+      const [, le] = lineInfo(endPos);
+      const block = v.slice(ls, le);
+      const out = toggleCommentText(block, state.lang);
+      if (out.text === block) return;
+      setRange(ls, le, out.text);
+      area.selectionStart = ls + out.selStart;
+      area.selectionEnd = ls + out.selEnd;
+    }
+
     area.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Tab') {
+      if ((ev.metaKey || ev.ctrlKey) && (ev.key === '/' || ev.code === 'Slash')) {
+        ev.preventDefault();
+        toggleLineComment();
+      } else if (ev.key === 'Tab') {
         ev.preventDefault();
         indentSelection(ev.shiftKey);
       } else if (ev.key === 'Enter' && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {

@@ -61,6 +61,7 @@
     aiBusy: false,
     running: false,
     runOnceBusy: false,
+    booted: false,
     saveTimer: null,
     previewTimer: null
   };
@@ -312,9 +313,11 @@
 
   function showView(name) {
     S.view = name;
+    document.documentElement.dataset.view = name;
     $('view-dashboard').hidden = name !== 'dashboard';
     $('view-task').hidden = name !== 'task';
     $('topbar-title').textContent = name === 'dashboard' ? 'Drill dashboard' : 'Drill workspace';
+    applyConsoleWidth();
   }
 
   function renderTimer() {
@@ -1266,6 +1269,95 @@
     try { await chatoss.scopedData.set('dbd.settings', S.settings); } catch (e) { /* ignore */ }
   }
 
+  /* ------------------------------------------------------------------ *
+   *  layout — collapsible panels + resizable console                    *
+   * ------------------------------------------------------------------ */
+
+  function layout() {
+    if (!S.settings.layout || typeof S.settings.layout !== 'object') S.settings.layout = {};
+    return S.settings.layout;
+  }
+
+  function saveLayout() {
+    saveSettings({ layout: layout() });
+  }
+
+  function applyConsoleWidth() {
+    const shell = $('shell');
+    if (!shell) return;
+    const saved = layout().consoleWidth || 380;
+    const w = S.view === 'dashboard' ? 0 : Math.max(260, Math.min(saved, Math.round(window.innerWidth * 0.7)));
+    shell.style.setProperty('--dbd-console-w', w + 'px');
+  }
+
+  function applyLayout() {
+    const L = layout();
+    document.documentElement.classList.toggle('dbd-sidebar-collapsed', !!L.sidebarCollapsed);
+    document.documentElement.classList.toggle('dbd-ai-collapsed', !!L.aiCollapsed);
+    const pc = $('task-prompt-card');
+    if (pc) pc.classList.toggle('is-collapsed', !!L.promptCollapsed);
+    const caret = $('prompt-caret');
+    if (caret) caret.textContent = L.promptCollapsed ? '▸' : '▾';
+    syncCollapseButtons();
+    applyConsoleWidth();
+  }
+
+  function syncCollapseButtons() {
+    const L = layout();
+    const s = $('btn-toggle-sidebar');
+    const a = $('btn-toggle-ai');
+    if (s) s.classList.toggle('is-off', !!L.sidebarCollapsed);
+    if (a) a.classList.toggle('is-off', !!L.aiCollapsed);
+  }
+
+  function toggleSidebar() {
+    layout().sidebarCollapsed = !layout().sidebarCollapsed;
+    applyLayout();
+    saveLayout();
+  }
+
+  function toggleAi() {
+    layout().aiCollapsed = !layout().aiCollapsed;
+    applyLayout();
+    saveLayout();
+  }
+
+  function togglePrompt() {
+    layout().promptCollapsed = !layout().promptCollapsed;
+    applyLayout();
+    saveLayout();
+  }
+
+  function wireGrip(el) {
+    if (!el) return;
+    el.addEventListener('pointerdown', (e) => {
+      const col = $('console-col');
+      if (!col || S.view !== 'task') return;
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = col.getBoundingClientRect().width || (layout().consoleWidth || 380);
+      document.body.classList.add('dbd-resizing');
+      const onMove = (me) => {
+        // the divider follows the pointer: drag left grows the console
+        let w = startW - (me.clientX - startX);
+        w = Math.max(260, Math.min(w, Math.round(window.innerWidth * 0.7)));
+        $('shell').style.setProperty('--dbd-console-w', Math.round(w) + 'px');
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        document.body.classList.remove('dbd-resizing');
+        const w = Math.round($('console-col').getBoundingClientRect().width);
+        if (w > 0) {
+          layout().consoleWidth = w;
+          saveLayout();
+        }
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
   function openSettingsModal() {
     $('set-nudge').checked = S.settings.nudgeEnabled !== false;
     $('modal-settings').hidden = false;
@@ -1414,6 +1506,15 @@
       }
     });
 
+    $('btn-toggle-sidebar').onclick = toggleSidebar;
+    $('btn-toggle-ai').onclick = toggleAi;
+    $('btn-collapse-sidebar').onclick = toggleSidebar;
+    $('btn-collapse-ai').onclick = toggleAi;
+    $('btn-prompt-toggle').onclick = togglePrompt;
+    wireGrip($('grip-code'));
+    wireGrip($('grip-console'));
+    window.addEventListener('resize', applyConsoleWidth);
+
     $('model-select').onchange = () => {
       S.model = $('model-select').value || null;
       saveSettings({ model: S.model });
@@ -1478,6 +1579,7 @@
 
     $('statusline').textContent = 'booting…';
 
+
     try {
       await DBD.db.init();
     } catch (e) {
@@ -1487,6 +1589,7 @@
 
     await loadSettings();
     wireEvents();
+    applyLayout();
     updateStatusline();
     aiLog('system', "Ready. Drills are written by the AI model up top, stored in your local SQLite database, and every past title is fed back to the generator so nothing repeats.");
 
@@ -1501,6 +1604,8 @@
     // async probes (statusline only)
     DBD.runner.detectCodeEngine().then(updateStatusline).catch(updateStatusline);
     DBD.runner.detectDomEngine().then(updateStatusline).catch(updateStatusline);
+
+    S.booted = true;
   }
 
   async function loadModels() {
