@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1322"/>
+      <stop offset="1" stop-color="#141c30"/>
+    </linearGradient>
+    <linearGradient id="brain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8ab4ff"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="6" y="6" width="244" height="244" rx="54" fill="url(#bg)"/>
+  <rect x="6.75" y="6.75" width="242.5" height="242.5" rx="53.25" fill="none" stroke="#243147" stroke-width="1.5"/>
+
+  <!-- left lobe -->
+  <path d="M122 78 C92 68 69 88 69 114 C69 120 70 126 72 131 C64 138 62 148 67 156 C60 165 63 180 73 186 C81 191 92 190 99 183 L99 100 C106 84 114 81 122 78 Z"
+        fill="none" stroke="url(#brain)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- right lobe -->
+  <path d="M134 78 C164 68 187 88 187 114 C187 120 186 126 184 131 C192 138 194 148 189 156 C196 165 193 180 183 186 C175 191 164 190 157 183 L157 100 C150 84 142 81 134 78 Z"
+        fill="none" stroke="url(#brain)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- sulci (brain folds) -->
+  <path d="M84 108 C90 104 96 104 101 108" fill="none" stroke="url(#brain)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M84 138 C90 134 96 134 101 138" fill="none" stroke="url(#brain)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M155 108 C160 104 166 104 172 108" fill="none" stroke="url(#brain)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M155 138 C160 134 166 134 172 138" fill="none" stroke="url(#brain)" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- lightning -->
+  <path d="M139 112 L119 147 L131 147 L117 178 L147 138 L134 138 Z" fill="#ffd166"/>
+
+  <!-- circuit spark dot -->
+  <circle cx="128" cy="72" r="6" fill="#ffd166"/>
+</svg>

@@ -1,0 +1,11 @@
+# scratch notes, logs, captures
+tmp/
+
+# OS junk
+.DS_Store
+
+# ChatOSS local state (worktrees etc.)
+.chatoss/
+
+# dependencies (none expected, just in case)
+node_modules/

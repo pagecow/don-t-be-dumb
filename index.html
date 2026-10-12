@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Don't Be Dumb</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell dbd-shell">
+
+  <!-- LEFT — skills + history -->
+  <aside class="app-sidebar dbd-sidebar">
+    <div class="app-sidebar-label dbd-side-label">Don't Be Dumb</div>
+    <div class="dbd-sidebar-scroll">
+      <button class="dbd-streak-card" id="streak-card" title="Days in a row with at least one completed drill">
+        <span class="dbd-streak-flame" aria-hidden="true">🔥</span>
+        <span><strong id="streak-count">0</strong> day streak</span>
+      </button>
+
+      <div class="dbd-side-group">
+        <div class="dbd-side-group-head"><span>Skills</span>
+          <button class="btn btn-ghost btn-sm" id="btn-add-skill">+ add</button>
+        </div>
+        <div id="skill-list" class="dbd-skill-list"></div>
+      </div>
+
+      <div class="dbd-side-group dbd-history-group">
+        <div class="dbd-side-group-head"><span>History</span><span class="faint" id="history-count"></span></div>
+        <div id="history-list" class="dbd-history-list"></div>
+      </div>
+    </div>
+    <div class="dbd-side-foot">
+      <button class="btn btn-ghost btn-sm" id="btn-settings">⚙ Settings</button>
+    </div>
+    <div class="statusline" id="statusline"></div>
+  </aside>
+
+  <!-- CENTER — dashboard + task workspace -->
+  <main class="app-main dbd-main">
+    <header class="app-titlebar dbd-topbar">
+      <div class="app-title" id="topbar-title">Drill dashboard</div>
+      <div class="spacer"></div>
+      <label class="dbd-model-wrap" title="The model that writes your drills and reviews">
+        <span class="muted">model</span>
+        <select class="select dbd-model-select" id="model-select"></select>
+      </label>
+    </header>
+
+    <div class="app-body dbd-body">
+
+      <!-- ============ DASHBOARD ============ -->
+      <section class="dbd-view" id="view-dashboard">
+        <div class="dbd-stat-row" id="stat-row"></div>
+
+        <div class="card dbd-request-card">
+          <div class="dbd-request-head">
+            <h3>Request a drill</h3>
+            <span class="hint">Every drill is written new for you. Past titles are fed back to the AI so nothing repeats.</span>
+          </div>
+          <div class="dbd-request-controls">
+            <div class="field dbd-field-inline">
+              <label class="label" for="req-skill">Skill</label>
+              <select class="select" id="req-skill"></select>
+            </div>
+            <div class="field dbd-field-inline">
+              <label class="label" for="req-difficulty">Difficulty</label>
+              <select class="select" id="req-difficulty">
+                <option value="easy">easy</option>
+                <option value="medium" selected>medium</option>
+                <option value="hard">hard</option>
+              </select>
+            </div>
+            <div class="field dbd-field-inline">
+              <label class="label" for="req-kind">Drill type</label>
+              <select class="select" id="req-kind">
+                <option value="auto" selected>auto</option>
+                <option value="code">write a function</option>
+                <option value="bug">find the bug</option>
+                <option value="dom">HTML/CSS build</option>
+                <option value="quiz">quick quiz</option>
+              </select>
+            </div>
+          </div>
+          <textarea class="textarea" id="req-note" rows="2"
+            placeholder="Optional extra instructions — e.g. “something with generators” or “array methods I've forgotten”"></textarea>
+          <div class="dbd-request-actions">
+            <button class="btn btn-primary" id="btn-generate">Generate drill</button>
+            <div class="spinner" id="generate-spinner" hidden></div>
+            <span class="hint" id="generate-status"></span>
+          </div>
+        </div>
+
+        <div class="dbd-section-head">
+          <h3>Rot radar</h3>
+          <span class="hint">sorted by time since last practice — the top one is what you're most likely to forget</span>
+        </div>
+        <div class="dbd-rot-grid" id="rot-grid"></div>
+      </section>
+
+      <!-- ============ TASK WORKSPACE ============ -->
+      <section class="dbd-view" id="view-task" hidden>
+        <div class="dbd-task-head">
+          <button class="btn btn-ghost btn-sm dbd-back" id="btn-back" title="Back to the dashboard">←</button>
+          <div class="dbd-task-title-wrap">
+            <div class="dbd-task-title" id="task-title"></div>
+            <div class="dbd-task-meta">
+              <span class="badge" id="task-skill"></span>
+              <span class="badge" id="task-difficulty"></span>
+              <span class="badge badge-info" id="task-kind"></span>
+              <span class="chip"><span class="chip-dot" id="task-dot"></span><span id="task-timer">0:00</span></span>
+              <span class="badge badge-success" id="task-status" hidden>passed</span>
+            </div>
+          </div>
+          <div class="spacer"></div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btn-run" title="Run your code against the tests (⌘/Ctrl + Enter)">Run tests <span class="faint">⌘↵</span></button>
+            <button class="btn btn-danger" id="btn-giveup">Give up</button>
+          </div>
+        </div>
+
+        <div class="dbd-task-prompt card" id="task-prompt"></div>
+
+        <div class="dbd-task-work" id="task-work">
+          <div class="dbd-work-main">
+            <div class="dbd-editor-tabs" id="editor-tabs" hidden></div>
+            <div class="dbd-editor-host" id="editor-host"></div>
+            <div class="dbd-quiz" id="quiz-host" hidden></div>
+          </div>
+          <div class="dbd-work-side" id="preview-pane" hidden>
+            <div class="dbd-pane-label">Live preview</div>
+            <iframe id="preview-frame" class="dbd-preview-frame" sandbox="" title="Live preview of your HTML/CSS"></iframe>
+            <div class="hint">renders on every keystroke (debounced)</div>
+          </div>
+        </div>
+
+        <div class="dbd-results" id="results-host">
+          <div class="empty">
+            <div class="empty-title">No test run yet</div>
+            <div class="empty-text">Write your solution, then hit <strong>Run tests</strong> (⌘/Ctrl + Enter).</div>
+          </div>
+        </div>
+
+        <div class="card dbd-unlock" id="unlock-panel" hidden>
+          <div class="dbd-unlock-head">
+            <h3 id="unlock-title">Unlocked</h3>
+            <span class="hint" id="unlock-sub"></span>
+          </div>
+          <div class="dbd-unlock-actions">
+            <button class="btn" id="btn-reveal-solution">Reveal reference solution</button>
+            <button class="btn" id="btn-show-explanation">Why it works</button>
+            <button class="btn" id="btn-ai-review">AI review my code</button>
+            <div class="spacer"></div>
+            <button class="btn btn-primary" id="btn-next">Next drill →</button>
+          </div>
+          <div class="dbd-solution-wrap" id="solution-wrap" hidden></div>
+        </div>
+      </section>
+
+    </div>
+
+    <footer class="app-footer dbd-footer">
+      <span class="muted" id="footer-note">Your code runs locally in a sandboxed runner — no shell, no network.</span>
+    </footer>
+  </main>
+
+  <!-- RIGHT — AI panel -->
+  <aside class="app-aside dbd-aside">
+    <div class="dbd-aside-head">
+      <span class="dbd-pane-label">AI panel</span>
+      <span class="badge" id="ai-mode-badge">idle</span>
+    </div>
+    <div class="dbd-ai-log" id="ai-log"></div>
+    <div class="dbd-aside-foot" id="ai-foot"></div>
+  </aside>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div class="overlay" id="modal-confirm" hidden>
+  <div class="modal dbd-modal">
+    <div class="modal-head"><strong id="confirm-title">Are you sure?</strong>
+      <button class="modal-close" id="confirm-x" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="confirm-body">…</div>
+    <div class="modal-foot">
+      <button class="btn" id="confirm-cancel">Cancel</button>
+      <button class="btn btn-primary" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modal-skill" hidden>
+  <div class="modal dbd-modal">
+    <div class="modal-head"><strong id="skill-modal-title">Add skill</strong>
+      <button class="modal-close" id="skill-x" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label class="label" for="skill-name">Skill</label>
+        <input class="input" id="skill-name" placeholder="e.g. TypeScript" />
+      </div>
+      <div class="field"><label class="label" for="skill-level">Level</label>
+        <select class="select" id="skill-level">
+          <option value="rusty">rusty</option>
+          <option value="warming up">warming up</option>
+          <option value="solid">solid</option>
+          <option value="sharp">sharp</option>
+        </select>
+      </div>
+      <div class="field"><label class="label" for="skill-notes">Notes for the drill author</label>
+        <textarea class="textarea" id="skill-notes" rows="3"
+          placeholder="e.g. 'I used Tailwind daily but never learned grid' — goes into every generation prompt"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="skill-delete" hidden>Delete</button>
+      <div class="spacer"></div>
+      <button class="btn" id="skill-cancel">Cancel</button>
+      <button class="btn btn-primary" id="skill-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modal-settings" hidden>
+  <div class="modal dbd-modal dbd-modal-settings">
+    <div class="modal-head"><strong>Settings</strong>
+      <button class="modal-close" id="settings-x" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field dbd-settings-row">
+        <label class="checkbox"><input type="checkbox" id="set-nudge" /> Daily reminder if a skill is rotting</label>
+        <span class="hint">Fires around 9:00 (declared in the app manifest). ChatOSS asks your permission the first time it sends; you can also switch it off in Permissions.</span>
+      </div>
+      <hr />
+      <div class="dbd-settings-row">
+        <div class="dbd-settings-line">
+          <button class="btn btn-sm" id="btn-envcheck">Run environment check</button>
+          <span class="hint">verifies the in-app code runner, the HTML/CSS checker, and the TypeScript compiler</span>
+        </div>
+        <div class="dbd-envcheck mono" id="envcheck-log">not run yet</div>
+      </div>
+      <hr />
+      <div class="dbd-settings-row">
+        <div class="dbd-settings-line">
+          <button class="btn btn-sm btn-danger" id="btn-reset">Erase all data…</button>
+          <span class="hint">deletes every skill, drill and attempt in the local SQLite database</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="settings-close">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/editor.js"></script>
+<script src="js/runner.js"></script>
+<script src="js/ts.js"></script>
+<script src="js/db.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/app.js"></script>
+<!-- The sandbox blocks on-demand script loading and fetch() to app files, so the
+     TypeScript compiler and its stdlib ship as static scripts, placed last so the UI
+     parses first. They initialise once at launch and sit idle until a TS drill runs. -->
+<script src="libs/typescript.js" defer></script>
+<script src="libs/tslibs.js" defer></script>
+</body>
+</html>

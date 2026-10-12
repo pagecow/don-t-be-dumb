@@ -1,0 +1,20 @@
+{
+  "id": "dev.tjmccarty.dont-be-dumb",
+  "name": "Don't Be Dumb",
+  "version": "1.0.0",
+  "description": "AI-generated coding drills for developers who refuse to let AI make them dumb. Interview-style tasks with real tests, a rot radar of your skills, and a local history so you never get the same drill twice.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "capabilities": ["chatApi", "sqlite", "notifications", "background"],
+  "backgroundTasks": [
+    {
+      "id": "daily-nudge",
+      "name": "Daily skill-rot check",
+      "description": "A gentle 9:00 reminder if one of your skills hasn't been practiced in a while and you haven't drilled today. Toggle it in the app's Settings.",
+      "trigger": { "type": "daily", "hour": 9, "minute": 0 }
+    }
+  ],
+  "scopedDataKeys": ["dbd.settings"],
+  "dataStoreRequests": [],
+  "toolsStoreRequests": []
+}
