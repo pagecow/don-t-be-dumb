@@ -28,3 +28,13 @@ Durable lessons recorded by coding agents working in this project. The engine re
 ## 2026-10-12 18:23:03
 
 - 🔴 `publish_app` zips the ENTIRE app folder (including `tmp/scratch/`) and enforces the 20 MB unpacked limit — release artifacts kept there (`*.aip` + `*.zip` ≈ 2.4 MB each) pushed the v1.1.0 dock publish to 24.2 MB and failed. Delete release artifacts from `tmp/scratch/` right after `gh release upload`; keep the runtime payload ≈ 14.2 MB (libs/ dominates). The GitHub release zips only runtime files (app.json, index.html, style.css, icon.svg, js/, libs/) — that one was fine at 15.0 MB unpacked.
+
+## 2026-10-12 21:28:09
+
+## v1.2.0 — Replit-style layout + editor shortcut
+
+- Layout rework: shell is now a 4-track grid — skills/history | AI panel | code column | console column — with `--dbd-sidebar-w / --dbd-ai-w / --dbd-console-w` vars on `.dbd-shell`; collapse states are classes on `<html>` (`dbd-sidebar-collapsed`, `dbd-ai-collapsed`); the console column exists only in the task view (`html[data-view]`, set by `showView`), and `applyConsoleWidth()` zeroes the track on the dashboard. The code editor + console col fill their column height (`.dbd-work-main` flex column, `#editor-host` flex, `.dbd-editor` flex:1). Corner `.dbd-grip` elements (code + console, bottom-right) drag the console width (window-level pointermove; divider follows the pointer; persists to settings.layout.consoleWidth). Collapse/grip/prompt-fold states persist in `scopedData` settings.layout.
+- `S.booted = true` at the end of boot() gives temporary selftests a reliable "boot finished" signal (avoids races with boot's own showView).
+- Editor: Cmd/Ctrl+/ toggles line comments (per-line `//` for JS/TS with all-commented/uncomment logic; `/* */` / `<!-- -->` wrap-unwrap for CSS/HTML), reusing lineInfo/setRange.
+- Verified end-to-end in the sandbox: `booted=ok layout=ok fullH=ok(260) collapse=ok grip=ok(380→520) cmt=ok`. Temporary selftest blocks can be removed with `sed -i '' '/__DBD_SELFTEST_START__/,/__DBD_SELFTEST_END__/d'` — no giant old_string matching needed.
+- ⚠ preview_check can occasionally report a false "BLANK frame" while the 8.5 MB `libs/typescript.js` parses in the ~1 s after boot — a re-run shows the healthy state. Don't chase it.

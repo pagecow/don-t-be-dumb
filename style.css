@@ -2,7 +2,11 @@
  * Don't Be Dumb — app styles.
  * Built on the platform tokens + component classes (appTheme.css / appUi.css are
  * injected before this file, so overriding is fine — redefining tokens is not).
- * No :root colour overrides. No prefers-color-scheme. Tokens only, both themes come free.
+ * No :root colour overrides. No prefers-color-scheme. Tokens only — both themes come free.
+ *
+ * Layout: two screens, toggled by [hidden] from showView().
+ *   HOME: [sidebar · skills + history] [main · request + rot radar] [AI panel]
+ *   TASK: [task rail]  [code editor — full height]  [console — full height; run buttons on top]
  */
 
 html, body { height: 100%; margin: 0; }
@@ -19,34 +23,18 @@ body {
 /* ---------------- shell ---------------- */
 
 .dbd-shell {
-  display: grid;
-  grid-template-columns:
-    var(--dbd-sidebar-w, 264px)
-    var(--dbd-ai-w, 340px)
-    minmax(0, 1fr)
-    min(var(--dbd-console-w, 380px), 62vw);
+  display: flex;
   height: 100vh;
   min-width: 0;
 }
 
-/* collapsible left panels (classes on <html>) */
-html.dbd-sidebar-collapsed .dbd-shell { --dbd-sidebar-w: 0px; }
-html.dbd-sidebar-collapsed .dbd-sidebar { display: none; }
-html.dbd-ai-collapsed .dbd-shell { --dbd-ai-w: 0px; }
-html.dbd-ai-collapsed .dbd-aside { display: none; }
-
-/* the console column only exists in the task view */
-html[data-view="dashboard"] .dbd-console { display: none; }
-
-.dbd-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.dbd-panel-collapse { flex: none; padding: 1px 7px; }
-
-.dbd-toggle { flex: none; font-size: 11px; }
-.dbd-toggle.is-off { opacity: 0.55; }
+/* ---------------- home screen ---------------- */
 
 .dbd-sidebar {
   display: flex;
   flex-direction: column;
+  flex: none;
+  width: 264px;
   min-height: 0;
   border-right: 1px solid var(--border);
   background: var(--bg-sidebar, var(--bg));
@@ -77,10 +65,11 @@ html[data-view="dashboard"] .dbd-console { display: none; }
 }
 
 .dbd-main {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
   min-width: 0;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
 }
 
@@ -94,20 +83,10 @@ html[data-view="dashboard"] .dbd-console { display: none; }
 }
 .dbd-model-select { max-width: 210px; font-size: 12px; padding: 3px 6px; }
 
-.dbd-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 14px 16px 16px;
-}
+.dbd-home-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px 30px; }
+.dbd-home-inner { max-width: 980px; }
 
-.dbd-view { min-height: 0; }
-#view-dashboard { flex: 1; overflow-y: auto; max-width: 980px; }
-#view-task { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-
-.dbd-footer { padding: 6px 14px; }
+.dbd-footer { padding: 6px 14px; flex: none; }
 
 /* ---------------- dashboard ---------------- */
 
@@ -263,73 +242,72 @@ html[data-view="dashboard"] .dbd-console { display: none; }
   text-align: left;
 }
 
-/* ---------------- task workspace ---------------- */
+/* ---------------- task screen ---------------- */
 
-.dbd-task-head {
+.dbd-taskscreen {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 12px;
 }
-.dbd-back { flex: none; }
-.dbd-task-title-wrap { min-width: 0; }
-.dbd-task-title { font-size: 17px; font-weight: 700; line-height: 1.25; }
-.dbd-task-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
-.dbd-task-prompt { padding: 0; margin-bottom: 12px; overflow: hidden; flex: none; }
-.dbd-prompt-head {
+/* LEFT — the drill */
+.dbd-task-side {
+  width: 350px;
+  flex: none;
+  min-width: 290px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-sidebar, var(--bg));
+}
+.dbd-task-side-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 7px 14px;
-  background: none;
-  border: 0;
-  border-bottom: 1px dashed var(--border);
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
 }
-.dbd-prompt-head:hover { background: var(--surface-2); }
-.dbd-prompt-body { padding: 9px 15px 12px; max-height: 165px; overflow: auto; font-size: 13px; }
-.dbd-task-prompt.is-collapsed .dbd-prompt-body { display: none; }
-.dbd-task-prompt.is-collapsed .dbd-prompt-head { border-bottom: 0; }
+.dbd-task-side-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 16px 18px;
+}
+.dbd-task-side-foot {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex: none;
+}
+.dbd-giveup { width: 100%; }
+
+.dbd-task-title { font-size: 17px; font-weight: 700; line-height: 1.3; margin: 0 0 10px; }
+.dbd-task-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.dbd-task-time { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; }
+.dbd-task-timer { font-size: 13px; color: var(--amber); }
+.dbd-task-timer.is-paused { color: var(--muted); border-style: dashed; }
+.dbd-task-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.dbd-task-prompt { font-size: 13px; }
 .dbd-task-prompt p { margin: 6px 0; }
 .dbd-task-prompt h4 { margin: 10px 0 4px; }
 .dbd-task-prompt ul, .dbd-task-prompt ol { margin: 6px 0; padding-left: 20px; }
+.dbd-task-prompt .code-block { overflow-x: auto; }
 
+/* MIDDLE — full-height code */
 .dbd-work-main {
   position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
-.dbd-editor-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.dbd-editor-host > div { flex: 1; min-height: 0; display: flex; }
-
-.dbd-work-side {
-  flex: none;
-  height: 235px;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 10px;
-}
-.dbd-preview-frame {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #ffffff;
-}
-
-/* editor tabs (HTML / CSS) */
-.dbd-editor-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+.dbd-editor-tabs { display: flex; gap: 4px; flex: none; }
 .dbd-editor-tab {
   padding: 4px 12px;
   border: 1px solid var(--border);
@@ -343,8 +321,29 @@ html[data-view="dashboard"] .dbd-console { display: none; }
 }
 .dbd-editor-tab.is-active { background: var(--bg); color: var(--text); font-weight: 650; }
 
-/* ---------------- code editor ---------------- */
+.dbd-editor-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dbd-editor-host > div { flex: 1; min-height: 0; display: flex; }
 
+#quiz-host { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 2px; }
+
+.dbd-work-side {
+  flex: none;
+  height: 240px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dbd-preview-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+/* code editor */
 .dbd-editor {
   display: flex;
   border: 1px solid var(--border);
@@ -391,13 +390,7 @@ html[data-view="dashboard"] .dbd-console { display: none; }
   tab-size: 2;
   border: 0;
 }
-
-.dbd-editor-pre {
-  overflow: hidden;
-  pointer-events: none;
-  color: var(--text);
-}
-
+.dbd-editor-pre { overflow: hidden; pointer-events: none; color: var(--text); }
 .dbd-editor-area {
   overflow: auto;
   resize: none;
@@ -407,7 +400,7 @@ html[data-view="dashboard"] .dbd-console { display: none; }
   caret-color: var(--text);
   outline: none;
 }
-.dbd-editor-area::selection { background: var(--accent-soft, rgba(127,127,127,0.25)); }
+.dbd-editor-area::selection { background: var(--accent-soft, rgba(127, 127, 127, 0.25)); }
 
 /* syntax colours — palette tokens only */
 .tk-c { color: var(--muted); font-style: italic; }
@@ -419,10 +412,93 @@ html[data-view="dashboard"] .dbd-console { display: none; }
 .tk-a { color: var(--link, var(--blue)); }
 .tk-p { color: var(--text-2); }
 
-/* ---------------- results ---------------- */
+/* ---------------- console column (right of the task screen) ---------------- */
 
-.dbd-results { margin-bottom: 16px; }
+.dbd-console-col {
+  position: relative;
+  width: 400px;
+  flex: none;
+  min-width: 300px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--bg-sidebar, var(--bg));
+  overflow: hidden;
+}
+.dbd-console-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.dbd-console-head .dbd-pane-label { margin-right: 4px; }
+.dbd-console-runbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.dbd-run-case { flex: none; max-width: 190px; font-size: 12px; }
+.dbd-run-args {
+  flex: 1 1 160px;
+  min-width: 120px;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.dbd-console-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px 44px;
+}
 
+/* log/console output block (unchanged helper used by results & single run) */
+.dbd-console {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--code-bg, var(--surface));
+  padding: 8px 11px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+  margin-top: 8px;
+}
+
+/* run report (single Run ▶) */
+.dbd-run-out { margin-bottom: 12px; }
+.dbd-run-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+.dbd-run-value {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--code-bg, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 11px;
+  max-height: 240px;
+  overflow: auto;
+}
+.dbd-run-value.is-error { border-color: var(--danger); color: var(--danger); }
+
+/* test results */
+.dbd-results { margin-bottom: 14px; }
 .dbd-results-head {
   display: flex;
   align-items: center;
@@ -455,25 +531,19 @@ html[data-view="dashboard"] .dbd-console { display: none; }
 .dbd-test-detail { margin-top: 4px; font-family: var(--mono); font-size: 11.5px; color: var(--text-2); white-space: pre-wrap; word-break: break-word; }
 .dbd-test-detail .dbd-k { color: var(--muted); }
 
-.dbd-console {
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--code-bg, var(--surface));
-  padding: 8px 11px;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  white-space: pre-wrap;
-  max-height: 200px;
-  overflow: auto;
-  margin-top: 8px;
-}
-
 .dbd-run-note { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
 
 /* ---------------- quiz ---------------- */
 
-.dbd-quiz { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px 16px; }
-
+.dbd-quiz {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px 16px;
+  margin: 44px auto 0;
+  max-width: 720px;
+  width: calc(100% - 20px);
+}
 .dbd-quiz-q { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
 .dbd-quiz-opts { display: flex; flex-direction: column; gap: 7px; }
 .dbd-quiz-opt {
@@ -494,25 +564,41 @@ html[data-view="dashboard"] .dbd-console { display: none; }
 
 /* ---------------- unlock panel ---------------- */
 
-.dbd-unlock { padding: 14px 16px; border-color: var(--border-strong); }
+.dbd-unlock { padding: 14px 16px; border-color: var(--border-strong); margin-bottom: 14px; }
 .dbd-unlock-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .dbd-unlock-head h3 { margin: 0; font-size: 15px; }
 .dbd-unlock-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dbd-solution-wrap { margin-top: 12px; }
+
+/* ---------------- review output (AI panel is hidden during a drill) ---------------- */
+
+.dbd-review-out {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 14px;
+}
 
 /* ---------------- AI panel ---------------- */
 
 .dbd-aside {
   display: flex;
   flex-direction: column;
+  flex: none;
+  width: 340px;
   min-height: 0;
-  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
   background: var(--bg-sidebar, var(--bg));
 }
 .dbd-aside-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 12px 14px 8px;
 }
 .dbd-pane-label {
@@ -592,99 +678,21 @@ html[data-view="dashboard"] .dbd-console { display: none; }
 .dbd-hidden { display: none !important; }
 .nowrap { white-space: nowrap; }
 
-/* ---------------- console column ---------------- */
-
-.dbd-console {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-left: 1px solid var(--border);
-  background: var(--bg-sidebar, var(--bg));
-  overflow: hidden;
-}
-.dbd-console-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px 8px;
-  flex: none;
-}
-.dbd-console-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 14px 44px; }
-.dbd-console .dbd-unlock { margin-bottom: 12px; }
-
-/* ---------------- resize grips ---------------- */
-
-.dbd-grip {
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 16px;
-  height: 16px;
-  cursor: col-resize;
-  opacity: 0.55;
-  z-index: 30;
-  touch-action: none;
-  border-radius: 3px;
-  background:
-    linear-gradient(135deg,
-      transparent 0 45%, var(--muted) 45% 52%,
-      transparent 52% 62%, var(--muted) 62% 69%,
-      transparent 69%);
-}
-.dbd-grip:hover { opacity: 1; background-color: var(--surface-2); }
-body.dbd-resizing, body.dbd-resizing * { cursor: col-resize !important; user-select: none !important; }
-
-@media (max-width: 1150px) {
-  .dbd-shell { --dbd-ai-w: 0px; }
-  .dbd-aside { display: none; }
-}
-@media (max-width: 900px) {
-  .dbd-shell { --dbd-sidebar-w: 0px; }
-  .dbd-sidebar { display: none; }
-}
-
-/* ---------------- console run ---------------- */
-
 .dbd-runbar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 8px;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 .dbd-runbar .dbd-pane-label { flex: none; }
-.dbd-run-case { max-width: 240px; font-size: 12px; }
-.dbd-run-args {
-  flex: 1 1 220px;
-  min-width: 150px;
-  font-family: var(--mono);
-  font-size: 12px;
-  padding: 5px 8px;
-}
 
-.dbd-run-out { margin-bottom: 14px; }
-.dbd-run-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 7px;
+@media (max-width: 1150px) {
+  .dbd-aside { display: none; }
 }
-.dbd-run-value {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--code-bg, var(--surface));
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 8px 11px;
-  max-height: 240px;
-  overflow: auto;
+@media (max-width: 900px) {
+  .dbd-sidebar { display: none; width: 0; }
 }
-.dbd-run-value.is-error { border-color: var(--danger); color: var(--danger); }

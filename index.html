@@ -7,29 +7,32 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<div class="app-shell dbd-shell" id="shell">
+<div class="dbd-shell" id="shell">
 
-  <!-- LEFT — skills + history -->
-  <aside class="app-sidebar dbd-sidebar">
-    <div class="app-sidebar-label dbd-side-label dbd-panel-head">
-      <span>Don't Be Dumb</span>
-      <button class="btn btn-ghost btn-sm dbd-panel-collapse" id="btn-collapse-sidebar" title="Collapse this panel">⟨</button>
-    </div>
+  <!-- ===================== HOME SCREEN ===================== -->
+  <!-- [sidebar · skills+history] [main · request + rot radar] [AI panel] -->
+
+  <aside class="app-sidebar dbd-sidebar" id="sidebar">
+    <div class="app-sidebar-label dbd-side-label">Don't Be Dumb</div>
     <div class="dbd-sidebar-scroll">
-      <button class="dbd-streak-card" id="streak-card" title="Days in a row with at least one completed drill">
-        <span class="dbd-streak-flame" aria-hidden="true">🔥</span>
-        <span><strong id="streak-count">0</strong> day streak</span>
+      <button class="dbd-streak-card" id="streak-card" type="button" title="Consecutive days with a completed drill">
+        <span class="dbd-streak-flame">🔥</span>
+        <span class="dbd-streak-text"><strong id="streak-count">0</strong> day streak</span>
       </button>
 
       <div class="dbd-side-group">
-        <div class="dbd-side-group-head"><span>Skills</span>
-          <button class="btn btn-ghost btn-sm" id="btn-add-skill">+ add</button>
+        <div class="dbd-side-group-head">
+          <span>Skills</span>
+          <button class="btn btn-ghost btn-sm" id="btn-add-skill" title="Add a skill you want to keep">+ add</button>
         </div>
         <div id="skill-list" class="dbd-skill-list"></div>
       </div>
 
-      <div class="dbd-side-group dbd-history-group">
-        <div class="dbd-side-group-head"><span>History</span><span class="faint" id="history-count"></span></div>
+      <div class="dbd-side-group">
+        <div class="dbd-side-group-head">
+          <span>History</span>
+          <span class="faint" id="history-count"></span>
+        </div>
         <div id="history-list" class="dbd-history-list"></div>
       </div>
     </div>
@@ -39,35 +42,19 @@
     <div class="statusline" id="statusline"></div>
   </aside>
 
-  <!-- LEFT-2 — AI panel (collapsible) -->
-  <aside class="app-aside dbd-aside" id="ai-panel">
-    <div class="dbd-aside-head">
-      <span class="dbd-pane-label">AI panel</span>
-      <div class="spacer"></div>
-      <span class="badge" id="ai-mode-badge">idle</span>
-      <button class="btn btn-ghost btn-sm dbd-panel-collapse" id="btn-collapse-ai" title="Collapse this panel">⟨</button>
-    </div>
-    <div class="dbd-ai-log" id="ai-log"></div>
-    <div class="dbd-aside-foot" id="ai-foot"></div>
-  </aside>
-
-  <!-- CENTER — dashboard + task workspace -->
-  <main class="app-main dbd-main">
+  <main class="dbd-main" id="main-home">
     <header class="app-titlebar dbd-topbar">
-      <button class="btn btn-ghost btn-sm dbd-toggle" id="btn-toggle-sidebar" title="Show / hide skills &amp; history">⟨ skills</button>
-      <button class="btn btn-ghost btn-sm dbd-toggle" id="btn-toggle-ai" title="Show / hide the AI panel">⟨ AI</button>
       <div class="app-title" id="topbar-title">Drill dashboard</div>
       <div class="spacer"></div>
-      <label class="dbd-model-wrap" title="The model that writes your drills and reviews">
-        <span class="muted">model</span>
+      <label class="dbd-model-wrap" title="The model that writes (and reviews) your drills">
+        <span class="label">model</span>
         <select class="select dbd-model-select" id="model-select"></select>
       </label>
     </header>
 
-    <div class="app-body dbd-body">
+    <div class="dbd-home-scroll" id="home-scroll">
+      <div class="dbd-home-inner">
 
-      <!-- ============ DASHBOARD ============ -->
-      <section class="dbd-view" id="view-dashboard">
         <div class="dbd-stat-row" id="stat-row"></div>
 
         <div class="card dbd-request-card">
@@ -78,7 +65,9 @@
           <div class="dbd-request-controls">
             <div class="field dbd-field-inline">
               <label class="label" for="req-skill">Skill</label>
-              <select class="select" id="req-skill"></select>
+              <select class="select" id="req-skill">
+                <option value="__auto__">auto — most neglected</option>
+              </select>
             </div>
             <div class="field dbd-field-inline">
               <label class="label" for="req-difficulty">Difficulty</label>
@@ -91,20 +80,22 @@
             <div class="field dbd-field-inline">
               <label class="label" for="req-kind">Drill type</label>
               <select class="select" id="req-kind">
-                <option value="auto" selected>auto</option>
+                <option value="auto">auto</option>
                 <option value="code">write a function</option>
                 <option value="bug">find the bug</option>
-                <option value="dom">HTML/CSS build</option>
+                <option value="dom">html/css build</option>
                 <option value="quiz">quick quiz</option>
               </select>
             </div>
           </div>
-          <textarea class="textarea" id="req-note" rows="2"
-            placeholder="Optional extra instructions — e.g. “something with generators” or “array methods I've forgotten”"></textarea>
+          <div class="field">
+            <label class="label" for="req-note">Anything in mind? <span class="faint">(optional)</span></label>
+            <textarea class="textarea" id="req-note" rows="2" placeholder="e.g. 'something with generators', 'array methods I keep forgetting', or leave blank for a surprise"></textarea>
+          </div>
           <div class="dbd-request-actions">
             <button class="btn btn-primary" id="btn-generate">Generate drill</button>
-            <div class="spinner" id="generate-spinner" hidden></div>
             <span class="hint" id="generate-status"></span>
+            <div class="spinner" id="generate-spinner" hidden></div>
           </div>
         </div>
 
@@ -113,96 +104,109 @@
           <span class="hint">sorted by time since last practice — the top one is what you're most likely to forget</span>
         </div>
         <div class="dbd-rot-grid" id="rot-grid"></div>
-      </section>
 
-      <!-- ============ TASK WORKSPACE ============ -->
-      <section class="dbd-view" id="view-task" hidden>
-        <div class="dbd-task-head">
-          <button class="btn btn-ghost btn-sm dbd-back" id="btn-back" title="Back to the dashboard">←</button>
-          <div class="dbd-task-title-wrap">
-            <div class="dbd-task-title" id="task-title"></div>
-            <div class="dbd-task-meta">
-              <span class="badge" id="task-skill"></span>
-              <span class="badge" id="task-difficulty"></span>
-              <span class="badge badge-info" id="task-kind"></span>
-              <span class="chip"><span class="chip-dot" id="task-dot"></span><span id="task-timer">0:00</span></span>
-              <span class="badge badge-success" id="task-status" hidden>passed</span>
-            </div>
-          </div>
-          <div class="spacer"></div>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="btn-run" title="Submit your code to the full test suite (⌘/Ctrl + Enter)">Run all tests <span class="faint">⌘↵</span></button>
-            <button class="btn btn-danger" id="btn-giveup">Give up</button>
-          </div>
-        </div>
-
-        <div class="dbd-task-prompt card" id="task-prompt-card">
-          <button class="dbd-prompt-head" id="btn-prompt-toggle" type="button" title="Show / hide the task brief">
-            <span class="dbd-pane-label">Task brief</span>
-            <span class="faint" id="prompt-caret">▾</span>
-          </button>
-          <div class="dbd-prompt-body" id="task-prompt"></div>
-        </div>
-
-        <div class="dbd-work-main" id="code-col">
-          <div class="dbd-editor-tabs" id="editor-tabs" hidden></div>
-          <div class="dbd-editor-host" id="editor-host"></div>
-          <div class="dbd-quiz" id="quiz-host" hidden></div>
-          <div class="dbd-work-side" id="preview-pane" hidden>
-            <div class="dbd-pane-label">Live preview</div>
-            <iframe id="preview-frame" class="dbd-preview-frame" sandbox="" title="Live preview of your HTML/CSS"></iframe>
-          </div>
-          <div class="dbd-runbar" id="run-bar" hidden>
-            <span class="dbd-pane-label">run</span>
-            <select class="select dbd-run-case" id="run-case" title="Which test case's arguments to use"></select>
-            <input class="input dbd-run-args" id="run-args" spellcheck="false" autocomplete="off"
-              placeholder="arguments — JSON array, e.g. [1, [2, 3]]" />
-            <button class="btn btn-sm" id="btn-run-once" title="Run your function once with these arguments (Enter)">Run ▶</button>
-          </div>
-          <div class="dbd-grip" id="grip-code" title="Drag to resize the console"></div>
-        </div>
-      </section>
-
+      </div>
     </div>
 
-    <footer class="app-footer dbd-footer">
-      <span class="muted" id="footer-note">Your code runs locally in a sandboxed runner — no shell, no network.</span>
+    <footer class="dbd-footer" id="task-footer">
+      <span class="muted mono" id="footer-note">Your code runs locally in a sandboxed runner — no shell, no network.</span>
     </footer>
   </main>
 
-  <!-- RIGHT — console & tests (full height; drag the corner grip to resize) -->
-  <aside class="dbd-console" id="console-col">
-    <div class="dbd-console-head">
-      <span class="dbd-pane-label">Console &amp; tests</span>
-      <div class="spacer"></div>
+  <aside class="app-aside dbd-aside" id="ai-panel">
+    <div class="dbd-aside-head">
+      <span class="dbd-pane-label">AI panel</span>
+      <span class="badge" id="ai-mode-badge">idle</span>
     </div>
-    <div class="dbd-console-scroll">
-      <div class="dbd-run-out" id="run-host" hidden></div>
-
-      <div class="dbd-results" id="results-host">
-        <div class="empty">
-          <div class="empty-title">No test run yet</div>
-          <div class="empty-text">Write your solution, then hit <strong>Run all tests</strong> (⌘/Ctrl + Enter).</div>
-        </div>
-      </div>
-
-      <div class="card dbd-unlock" id="unlock-panel" hidden>
-        <div class="dbd-unlock-head">
-          <h3 id="unlock-title">Unlocked</h3>
-          <span class="hint" id="unlock-sub"></span>
-        </div>
-        <div class="dbd-unlock-actions">
-          <button class="btn" id="btn-reveal-solution">Reveal reference solution</button>
-          <button class="btn" id="btn-show-explanation">Why it works</button>
-          <button class="btn" id="btn-ai-review">AI review my code</button>
-          <div class="spacer"></div>
-          <button class="btn btn-primary" id="btn-next">Next drill →</button>
-        </div>
-        <div class="dbd-solution-wrap" id="solution-wrap" hidden></div>
-      </div>
-    </div>
-    <div class="dbd-grip" id="grip-console" title="Drag to resize"></div>
+    <div class="dbd-ai-log" id="ai-log"></div>
+    <div class="dbd-aside-foot" id="ai-foot"></div>
   </aside>
+
+  <!-- ===================== TASK SCREEN (old-Replit: task | code | console) ===================== -->
+  <section class="dbd-taskscreen" id="task-screen" hidden>
+
+    <!-- LEFT — the drill itself -->
+    <aside class="dbd-task-side" id="task-side">
+      <div class="dbd-task-side-head">
+        <button class="btn btn-ghost btn-sm" id="btn-back" title="Back to the dashboard">← home</button>
+        <div class="spacer"></div>
+        <span class="badge badge-info" id="task-kind">write a function</span>
+      </div>
+
+      <div class="dbd-task-side-scroll">
+        <h2 class="dbd-task-title" id="task-title">…</h2>
+        <div class="dbd-task-meta">
+          <span class="badge" id="task-skill">skill</span>
+          <span class="badge" id="task-difficulty">difficulty</span>
+          <span class="badge badge-success" id="task-status" hidden>passed</span>
+        </div>
+        <div class="dbd-task-time">
+          <span class="chip mono dbd-task-timer" id="task-timer">0:00</span>
+          <button class="btn btn-ghost btn-sm" id="btn-pause" title="Pause the timer (take a break)">⏸</button>
+        </div>
+        <div class="dbd-task-tags" id="task-tags" hidden></div>
+        <div class="dbd-task-prompt" id="task-prompt"></div>
+      </div>
+
+      <div class="dbd-task-side-foot">
+        <button class="btn btn-danger dbd-giveup" id="btn-giveup">Give up</button>
+      </div>
+    </aside>
+
+    <!-- MIDDLE — the editor, full height -->
+    <div class="dbd-work-main" id="code-col">
+      <div class="dbd-editor-tabs" id="editor-tabs" hidden></div>
+      <div class="dbd-editor-host" id="editor-host"></div>
+      <div class="dbd-quiz" id="quiz-host" hidden></div>
+      <div class="dbd-work-side" id="preview-pane" hidden>
+        <div class="dbd-pane-label">Live preview <span class="faint" style="text-transform:none;letter-spacing:0">(updates as you type)</span></div>
+        <iframe id="preview-frame" class="dbd-preview-frame" sandbox="" title="Live preview of your HTML/CSS"></iframe>
+      </div>
+      <div class="dbd-grip" id="grip-code" title="Drag to resize the console"></div>
+    </div>
+
+    <!-- RIGHT — console & tests, full height; run buttons live at its top -->
+    <aside class="dbd-console-col" id="console-col">
+      <div class="dbd-console-head">
+        <span class="dbd-pane-label">Console &amp; tests</span>
+        <div class="spacer"></div>
+        <button class="btn btn-sm" id="btn-run-once" title="Run your function once with the args below">Run ▶</button>
+        <button class="btn btn-primary btn-sm" id="btn-run" title="Submit your code to the full test suite (⌘/Ctrl + Enter)">Run all tests</button>
+      </div>
+      <div class="dbd-console-runbar" id="run-bar" hidden>
+        <select class="select dbd-run-case" id="run-case" title="Which test case's arguments to use"></select>
+        <input class="input dbd-run-args" id="run-args" spellcheck="false" autocomplete="off"
+          placeholder="args — JSON array, e.g. [1, [2, 3]]" />
+      </div>
+      <div class="dbd-console-scroll">
+        <div class="dbd-run-out" id="run-host" hidden></div>
+
+        <div class="dbd-results" id="results-host">
+          <div class="empty">
+            <div class="empty-title">No test run yet</div>
+            <div class="empty-text">Write your solution, then hit <strong>Run all tests</strong> (⌘/Ctrl + Enter).</div>
+          </div>
+        </div>
+
+        <div class="card dbd-unlock" id="unlock-panel" hidden>
+          <div class="dbd-unlock-head">
+            <h3 id="unlock-title">Unlocked</h3>
+            <span class="hint" id="unlock-sub"></span>
+          </div>
+          <div class="dbd-unlock-actions">
+            <button class="btn" id="btn-reveal-solution">Reveal reference solution</button>
+            <button class="btn" id="btn-show-explanation">Why it works</button>
+            <button class="btn" id="btn-ai-review">AI review my code</button>
+            <div class="spacer"></div>
+            <button class="btn btn-primary" id="btn-next">Next drill →</button>
+          </div>
+          <div class="dbd-solution-wrap" id="solution-wrap" hidden></div>
+        </div>
+        <div class="dbd-review-out" id="review-out" hidden></div>
+      </div>
+      <div class="dbd-grip" id="grip-console" title="Drag to resize the console"></div>
+    </aside>
+  </section>
 </div>
 
 <!-- ============ MODALS ============ -->
@@ -273,6 +277,10 @@
         <div class="dbd-settings-line">
           <button class="btn btn-sm btn-danger" id="btn-reset">Erase all data…</button>
           <span class="hint">deletes every skill, drill and attempt in the local SQLite database</span>
+        </div>
+        <div class="dbd-settings-line">
+          <button class="btn btn-sm btn-danger" id="btn-wipe-layout">Reset layout…</button>
+          <span class="hint">clears this app's saved width/resize state in the settings store</span>
         </div>
       </div>
     </div>

@@ -61,6 +61,7 @@
     aiBusy: false,
     running: false,
     runOnceBusy: false,
+    paused: false,
     booted: false,
     saveTimer: null,
     previewTimer: null
@@ -314,23 +315,63 @@
   function showView(name) {
     S.view = name;
     document.documentElement.dataset.view = name;
-    $('view-dashboard').hidden = name !== 'dashboard';
-    $('view-task').hidden = name !== 'task';
+    const home = name === 'dashboard';
+    $('sidebar').hidden = !home;
+    $('main-home').hidden = !home;
+    $('ai-panel').hidden = !home;
+    $('task-screen').hidden = name !== 'task';
     $('topbar-title').textContent = name === 'dashboard' ? 'Drill dashboard' : 'Drill workspace';
-    applyConsoleWidth();
+    if (!home) applyConsoleWidth();
   }
 
   function renderTimer() {
     const c = S.current;
     if (!c) return;
     let elapsed;
-    if (c.active) {
+    if (c.active && !S.paused) {
       elapsed = (S.baseSeconds || 0) + Math.floor((Date.now() - (S.resumedAt || Date.now())) / 1000);
+    } else if (S.paused) {
+      elapsed = S.baseSeconds || 0;
     } else {
       elapsed = (c.attempt && c.attempt.seconds) || S.baseSeconds || 0;
     }
     S.elapsed = elapsed;
-    $('task-timer').textContent = Math.floor(elapsed / 60) + ':' + pad2(elapsed % 60);
+    const chip = $('task-timer');
+    chip.textContent = fmtElapsed(elapsed);
+    chip.classList.toggle('is-paused', !!S.paused);
+  }
+
+  function fmtElapsed(total) {
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return h > 0 ? h + ':' + pad2(m) + ':' + pad2(s) : m + ':' + pad2(s);
+  }
+
+  function updatePauseButton() {
+    const b = $('btn-pause');
+    if (!b) return;
+    b.textContent = S.paused ? '▶' : '⏸';
+    b.title = S.paused ? 'Resume the timer' : 'Pause the timer (take a break)';
+  }
+
+  async function togglePause() {
+    const c = S.current;
+    if (!c || !c.active) return;
+    if (!S.paused) {
+      renderTimer();
+      S.baseSeconds = S.elapsed;
+      S.paused = true;
+      stopTimer();
+      updatePauseButton();
+      try { if (c.attempt) c.attempt = await DBD.db.updateAttempt(c.attempt.id, { seconds: S.baseSeconds }); } catch (e) { /* ignore */ }
+      renderTimer();
+    } else {
+      S.paused = false;
+      S.resumedAt = Date.now();
+      updatePauseButton();
+      startTimer();
+    }
   }
   function startTimer() {
     stopTimer();
@@ -393,6 +434,14 @@
     $('task-difficulty').textContent = task.difficulty;
     $('task-kind').textContent = KIND_LABEL[task.kind] || task.kind;
 
+    const tags = $('task-tags');
+    if (tags) {
+      const list = task.tags || [];
+      tags.innerHTML = '';
+      tags.hidden = list.length === 0;
+      for (const t of list.slice(0, 8)) tags.appendChild(el('span', 'chip', t));
+    }
+
     const st = $('task-status');
     st.className = 'badge badge-success';
     if (!active) {
@@ -404,8 +453,14 @@
       st.hidden = true;
     }
 
+    const isCode = task.kind === 'code' || task.kind === 'bug';
+    const isQuiz = task.kind === 'quiz';
+    $('btn-run').hidden = isQuiz;
+    $('btn-run-once').hidden = !isCode;
     $('btn-run').disabled = !active;
     $('btn-giveup').hidden = !active;
+    $('btn-pause').hidden = !active;
+    updatePauseButton();
     renderTimer();
   }
 
@@ -785,7 +840,10 @@
       const empty = el('div', 'empty');
       empty.appendChild(el('div', 'empty-title', 'No test run yet'));
       const t = el('div', 'empty-text');
-      t.innerHTML = 'Write your solution, then hit <strong>Run tests</strong> (⌘/Ctrl + Enter).';
+      const isQuiz = !!(S.current && S.current.task && S.current.task.kind === 'quiz');
+      t.innerHTML = isQuiz
+        ? 'This drill is a quiz — no tests to run. Answer the question on the left.'
+        : 'Write your solution, then hit <strong>Run all tests</strong> (⌘/Ctrl + Enter).';
       empty.appendChild(t);
       host.appendChild(empty);
       return;
@@ -947,7 +1005,11 @@
     const host = $('unlock-panel');
     const c = S.current;
     host.hidden = !S.unlocked || !c;
-    if (!c || !S.unlocked) return;
+    if (!c || !S.unlocked) {
+      const ro = $('review-out');
+      if (ro) { ro.hidden = true; ro.innerHTML = ''; }
+      return;
+    }
     const isQuiz = c.task.kind === 'quiz';
     $('btn-reveal-solution').hidden = isQuiz;
     $('btn-show-explanation').hidden = isQuiz || !c.task.explanation;
@@ -1003,26 +1065,45 @@
     if (!c || !S.unlocked || S.aiBusy) return;
     if (!S.model) { aiLog('error', 'No AI model is available — check ChatOSS Models first.'); return; }
     S.aiBusy = true;
-    const msg = aiLog('assistant', 'Reviewing your code…');
+
     const code = c.task.kind === 'dom'
       ? (S.editor ? S.editor.getValue() : '') + '\n\n/* ---------- styles.css ---------- */\n\n' + (S.cssEditor ? S.cssEditor.getValue() : '')
       : (S.editor ? S.editor.getValue() : ((c.attempt && c.attempt.code) || ''));
     const summary = S.lastResults
       ? ((S.lastResults.results || []).filter((r) => r.passed).length + '/' + (S.lastResults.results || []).length + ' passed')
       : (c.attempt ? c.attempt.passed + '/' + c.attempt.total + ' passed (last run)' : 'not run');
+
+    // In the task screen the AI panel is hidden, so reviews stream into the console
+    // column's review block; on the home screen they go to the AI log as usual.
+    let headNode;
+    let bodyNode;
+    const out = $('review-out');
+    if (S.view === 'task' && out) {
+      out.hidden = false;
+      out.innerHTML = '';
+      headNode = el('div', 'dbd-pane-label', 'AI review · reviewing…');
+      bodyNode = el('div', 'dbd-review-body', '…');
+      out.appendChild(headNode);
+      out.appendChild(bodyNode);
+      out.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else {
+      const msg = aiLog('assistant', 'Reviewing your code…');
+      headNode = msg._role;
+      bodyNode = msg._body;
+    }
     try {
       await DBD.ai.reviewAttempt({
         model: S.model,
         task: c.task,
         code,
         resultsSummary: summary,
-        onStream: (txt) => { msg._body.textContent = txt; }
+        onStream: (txt) => { bodyNode.textContent = txt; }
       });
-      msg._role.textContent = 'AI review';
+      headNode.textContent = 'AI review';
     } catch (e) {
-      msg.classList.add('is-error');
-      msg._role.textContent = 'error';
-      msg._body.textContent = 'Review failed: ' + ((e && e.message) || e);
+      headNode.textContent = 'AI review — failed';
+      headNode.classList.add('is-error');
+      bodyNode.textContent = 'Review failed: ' + ((e && e.message) || e);
     } finally {
       S.aiBusy = false;
     }
@@ -1040,6 +1121,7 @@
     S.resumedAt = Date.now();
     S.lastResults = null;
     S.elapsed = S.baseSeconds;
+    S.paused = false;
 
     renderTaskHeader();
     renderMarkdownLite($('task-prompt'), task.prompt);
@@ -1270,7 +1352,7 @@
   }
 
   /* ------------------------------------------------------------------ *
-   *  layout — collapsible panels + resizable console                    *
+   *  layout — console width (corner drag grips) + layout reset          *
    * ------------------------------------------------------------------ */
 
   function layout() {
@@ -1278,54 +1360,40 @@
     return S.settings.layout;
   }
 
+  function sanitizeLayout() {
+    const L = (S.settings.layout && typeof S.settings.layout === 'object') ? S.settings.layout : {};
+    const w = Number(L.consoleWidth);
+    const out = {};
+    if (Number.isFinite(w) && w >= 240 && w <= 1100) out.consoleWidth = Math.round(w);
+    S.settings.layout = out;
+  }
+
   function saveLayout() {
     saveSettings({ layout: layout() });
   }
 
   function applyConsoleWidth() {
-    const shell = $('shell');
-    if (!shell) return;
-    const saved = layout().consoleWidth || 380;
-    const w = S.view === 'dashboard' ? 0 : Math.max(260, Math.min(saved, Math.round(window.innerWidth * 0.7)));
-    shell.style.setProperty('--dbd-console-w', w + 'px');
+    const col = $('console-col');
+    if (!col) return;
+    const saved = Number(layout().consoleWidth) || 400;
+    const w = Math.max(300, Math.min(saved, Math.max(340, window.innerWidth - 620)));
+    col.style.width = w + 'px';
   }
 
-  function applyLayout() {
-    const L = layout();
-    document.documentElement.classList.toggle('dbd-sidebar-collapsed', !!L.sidebarCollapsed);
-    document.documentElement.classList.toggle('dbd-ai-collapsed', !!L.aiCollapsed);
-    const pc = $('task-prompt-card');
-    if (pc) pc.classList.toggle('is-collapsed', !!L.promptCollapsed);
-    const caret = $('prompt-caret');
-    if (caret) caret.textContent = L.promptCollapsed ? '▸' : '▾';
-    syncCollapseButtons();
-    applyConsoleWidth();
-  }
-
-  function syncCollapseButtons() {
-    const L = layout();
-    const s = $('btn-toggle-sidebar');
-    const a = $('btn-toggle-ai');
-    if (s) s.classList.toggle('is-off', !!L.sidebarCollapsed);
-    if (a) a.classList.toggle('is-off', !!L.aiCollapsed);
-  }
-
-  function toggleSidebar() {
-    layout().sidebarCollapsed = !layout().sidebarCollapsed;
-    applyLayout();
-    saveLayout();
-  }
-
-  function toggleAi() {
-    layout().aiCollapsed = !layout().aiCollapsed;
-    applyLayout();
-    saveLayout();
-  }
-
-  function togglePrompt() {
-    layout().promptCollapsed = !layout().promptCollapsed;
-    applyLayout();
-    saveLayout();
+  function wipeLayout() {
+    confirmModal({
+      title: 'Reset the saved layout?',
+      body: 'This clears the saved console width for this app (one number). Data and skills are untouched.',
+      confirmLabel: 'Reset layout',
+      danger: false
+    }).then(async (ok) => {
+      if (!ok) return;
+      S.settings.layout = {};
+      await saveSettings({ layout: {} });
+      applyConsoleWidth();
+      aiLog('system', 'Layout state reset.');
+      if ($('modal-settings')) $('modal-settings').hidden = true;
+    });
   }
 
   function wireGrip(el) {
@@ -1335,19 +1403,19 @@
       if (!col || S.view !== 'task') return;
       e.preventDefault();
       const startX = e.clientX;
-      const startW = col.getBoundingClientRect().width || (layout().consoleWidth || 380);
+      const startW = col.getBoundingClientRect().width;
       document.body.classList.add('dbd-resizing');
       const onMove = (me) => {
         // the divider follows the pointer: drag left grows the console
         let w = startW - (me.clientX - startX);
-        w = Math.max(260, Math.min(w, Math.round(window.innerWidth * 0.7)));
-        $('shell').style.setProperty('--dbd-console-w', Math.round(w) + 'px');
+        w = Math.max(300, Math.min(w, Math.max(340, window.innerWidth - 620)));
+        col.style.width = Math.round(w) + 'px';
       };
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         document.body.classList.remove('dbd-resizing');
-        const w = Math.round($('console-col').getBoundingClientRect().width);
+        const w = Math.round(col.getBoundingClientRect().width);
         if (w > 0) {
           layout().consoleWidth = w;
           saveLayout();
@@ -1506,11 +1574,8 @@
       }
     });
 
-    $('btn-toggle-sidebar').onclick = toggleSidebar;
-    $('btn-toggle-ai').onclick = toggleAi;
-    $('btn-collapse-sidebar').onclick = toggleSidebar;
-    $('btn-collapse-ai').onclick = toggleAi;
-    $('btn-prompt-toggle').onclick = togglePrompt;
+    $('btn-pause').onclick = togglePause;
+    $('btn-wipe-layout').onclick = wipeLayout;
     wireGrip($('grip-code'));
     wireGrip($('grip-console'));
     window.addEventListener('resize', applyConsoleWidth);
@@ -1580,6 +1645,7 @@
     $('statusline').textContent = 'booting…';
 
 
+
     try {
       await DBD.db.init();
     } catch (e) {
@@ -1588,8 +1654,9 @@
     }
 
     await loadSettings();
+    sanitizeLayout();
     wireEvents();
-    applyLayout();
+    applyConsoleWidth();
     updateStatusline();
     aiLog('system', "Ready. Drills are written by the AI model up top, stored in your local SQLite database, and every past title is fed back to the generator so nothing repeats.");
 
