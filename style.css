@@ -568,6 +568,7 @@ body {
 .dbd-unlock-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .dbd-unlock-head h3 { margin: 0; font-size: 15px; }
 .dbd-unlock-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dbd-unlock-hint { margin-top: 10px; }
 .dbd-solution-wrap { margin-top: 12px; }
 
 /* ---------------- review output (AI panel is hidden during a drill) ---------------- */

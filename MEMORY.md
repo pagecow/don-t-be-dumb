@@ -38,3 +38,16 @@ Durable lessons recorded by coding agents working in this project. The engine re
 - Editor: Cmd/Ctrl+/ toggles line comments (per-line `//` for JS/TS with all-commented/uncomment logic; `/* */` / `<!-- -->` wrap-unwrap for CSS/HTML), reusing lineInfo/setRange.
 - Verified end-to-end in the sandbox: `booted=ok layout=ok fullH=ok(260) collapse=ok grip=ok(380→520) cmt=ok`. Temporary selftest blocks can be removed with `sed -i '' '/__DBD_SELFTEST_START__/,/__DBD_SELFTEST_END__/d'` — no giant old_string matching needed.
 - ⚠ preview_check can occasionally report a false "BLANK frame" while the 8.5 MB `libs/typescript.js` parses in the ~1 s after boot — a re-run shows the healthy state. Don't chase it.
+
+## 2026-10-12 21:59:29
+
+## v1.3.0 — two-screen layout, pausable timer, collapse removal
+
+- The column-collapse feature from v1.2 broke the real installed window (screenshot evidence) and leaked polluted layout settings into the user's scopedData. Removed collapse entirely; the app is now TWO screens via plain [hidden] toggles: home = sidebar(main request/rot) + AI panel; task = task rail | full-height editor | full-height console (run buttons in the console head). `showView()` swaps them; `applyConsoleWidth()` writes an inline width on #console-col with clamps (280…window−620). Grip drags = window-level pointermove, divider follows pointer, saved under settings.layout.consoleWidth.
+- Layout settings are sanitized at load (`sanitizeLayout()`): only `consoleWidth` survives, clamped and numeric. Settings → "Reset layout" (wipeLayout) clears it.
+- 🔴 Lesson: the Create preview seems to share scopedData/SQLite with the installed app — temporary boot selftests must snapshot ALL of `S.settings` and restore it in a finally block, and fake tasks/attempts must use id -1 and never be inserted into the DB.
+- 🔴 Lesson: a failed edit_file partial-move left a duplicate `const` in the same scope → SyntaxError → the whole app.js stopped parsing, and because the app frame has an opaque origin the syntax error surfaces only as a masked uncaught "Script error." Diagnosis pattern: syntax error in app.js ⇒ title never changes, boot never runs, "Script error." once — then `node --check` finds it instantly. Also: `sed -i '' '/__DBD_SELFTEST_START__/,/__DBD_SELFTEST_END__/d'` is the reliable way to delete selftest blocks (no giant edit_file matching).
+- Timer: hours format in fmtElapsed (h:mm:ss or m:ss), pause/resume via S.paused + baseSeconds/resumedAt, paused seconds persisted to attempts via updateAttempt on pause and on save.
+- Reviews stream into #review-out in the console column while in a task (AI panel is hidden there).
+- preview_check flakes to expect: an occasional false BLANK frame during the ~1s typescript.js parse; re-run.
+- Verified end-to-end signature: `booted=ok view=ok fullH=ok(754/800) btns=ok timerH=ok(1:02:05) grip=ok(400→560) cmt=ok reviewOut=ok pause=ok(1:02:05)`. (A second run showed grip=BAD(560→580) only because the first run persisted consoleWidth=580 and 560→580 hit the window-edge clamp.)

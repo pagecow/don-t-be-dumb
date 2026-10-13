@@ -12,16 +12,32 @@
 
   let ready = false;
 
+  const SEED_VERSION = 2;
+
+  // Default skills. Only JavaScript/TypeScript can be EXECUTED by the in-app runner and
+  // HTML/CSS can be rendered — every other language is practised through code-reading
+  // quizzes (the drill generator is told to do this in js/ai.js).
   const SEED_SKILLS = [
     ['JavaScript', 'rusty', 'Core language: closures, prototypes, async/await, iterators.'],
     ['TypeScript', 'rusty', 'Types, generics, narrowing, utility types.'],
     ['React', 'rusty', 'Hooks, state design, rendering behavior.'],
-    ['Next.js', 'rusty', 'App router, server/client components, data fetching.'],
     ['Node.js', 'rusty', 'Streams, the event loop, modules, async patterns.'],
     ['HTML', 'rusty', 'Semantics, forms, accessibility basics.'],
     ['CSS', 'rusty', 'Flexbox, grid, specificity, responsive design.'],
-    ['Tailwind CSS', 'rusty', 'Utility patterns, responsive variants, config.'],
-    ['React Native (Expo)', 'rusty', 'Core components, styling, navigation, Expo APIs.']
+    ['React Native (Expo)', 'rusty', 'Core components, styling, navigation, Expo APIs.'],
+    ['Python', 'rusty', 'Strings, dicts, comprehensions, generators, decorators, classes.'],
+    ['Java', 'rusty', 'Collections, generics, streams, exceptions, OOP design.'],
+    ['C#', 'rusty', 'LINQ, generics, async/await, records, OOP.'],
+    ['C', 'rusty', 'Pointers, memory, strings, structs, the preprocessor.'],
+    ['C++', 'rusty', 'RAII, templates, STL, move semantics.'],
+    ['Go', 'rusty', 'Goroutines, channels, interfaces, error handling.'],
+    ['Rust', 'rusty', 'Ownership, borrowing, enums, traits, error handling.'],
+    ['SQL', 'rusty', 'Joins, aggregation, window functions, indexes, transactions.'],
+    ['PHP', 'rusty', 'Arrays, strings, classes, PDO, modern PHP patterns.'],
+    ['Ruby', 'rusty', 'Blocks, enumerables, modules, metaprogramming basics.'],
+    ['Swift', 'rusty', 'Optionals, closures, protocols, value semantics.'],
+    ['Kotlin', 'rusty', 'Null safety, data classes, coroutines, extension functions.'],
+    ['Bash', 'rusty', 'Pipes, redirection, conditionals, parameter expansion.']
   ];
 
   const SCHEMA = [
@@ -71,7 +87,8 @@
     )`,
     `CREATE INDEX IF NOT EXISTS idx_attempts_task ON attempts(task_id)`,
     `CREATE INDEX IF NOT EXISTS idx_attempts_updated ON attempts(updated_at)`,
-    `CREATE INDEX IF NOT EXISTS idx_tasks_skill ON tasks(skill)`
+    `CREATE INDEX IF NOT EXISTS idx_tasks_skill ON tasks(skill)`,
+    `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
   ];
 
   function nowIso() { return new Date().toISOString(); }
@@ -84,15 +101,45 @@
     const opened = await window.chatoss.db.open(NAME);
     if (!opened) throw new Error('Could not open the app database.');
     for (const sql of SCHEMA) await exec(sql);
+
     const rows = await query('SELECT COUNT(*) AS n FROM skills');
     const n = rows && rows[0] ? rows[0].n : 0;
+    const v = Number(await getMeta('skills_seed')) || 0;
     if (!n) {
-      const t = nowIso();
-      for (const s of SEED_SKILLS) {
-        await exec('INSERT INTO skills (name, level, notes, created_at) VALUES (?, ?, ?, ?)', [s[0], s[1], s[2], t]);
-      }
+      await insertSeedSkills();
+      await setMeta('skills_seed', SEED_VERSION);
+    } else if (v < SEED_VERSION) {
+      // v1 → v2: Next.js and Tailwind CSS were retired as defaults and many more
+      // languages were added. Remove the two only if they are untouched seeds.
+      await exec(
+        `DELETE FROM skills WHERE name IN ('Next.js', 'Tailwind CSS')
+          AND practice_count = 0 AND last_practiced_at IS NULL
+          AND notes IN ('App router, server/client components, data fetching.',
+                        'Utility patterns, responsive variants, config.')`);
+      await insertSeedSkills();
+      await setMeta('skills_seed', SEED_VERSION);
     }
     ready = true;
+  }
+
+  async function getMeta(key) {
+    const r = await query('SELECT value FROM meta WHERE key = ?', [key]);
+    return r[0] ? r[0].value : null;
+  }
+
+  async function setMeta(key, value) {
+    await exec('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', [key, String(value)]);
+  }
+
+  // Insert every seed skill that is missing by name — a fresh install gets all of them,
+  // and older databases pick up skills that were added since they were seeded.
+  async function insertSeedSkills() {
+    const t = nowIso();
+    for (const s of SEED_SKILLS) {
+      await exec(
+        'INSERT INTO skills (name, level, notes, created_at) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = ?)',
+        [s[0], s[1], s[2], t, s[0]]);
+    }
   }
 
   /* ---------------- skills ---------------- */
@@ -254,10 +301,8 @@
     await exec('DELETE FROM attempts');
     await exec('DELETE FROM tasks');
     await exec('DELETE FROM skills');
-    const t = nowIso();
-    for (const s of SEED_SKILLS) {
-      await exec('INSERT INTO skills (name, level, notes, created_at) VALUES (?, ?, ?, ?)', [s[0], s[1], s[2], t]);
-    }
+    await insertSeedSkills();
+    await setMeta('skills_seed', SEED_VERSION);
   }
 
   DBD.db = {

@@ -457,7 +457,7 @@
     const isQuiz = task.kind === 'quiz';
     $('btn-run').hidden = isQuiz;
     $('btn-run-once').hidden = !isCode;
-    $('btn-run').disabled = !active;
+    $('btn-run').disabled = false;
     $('btn-giveup').hidden = !active;
     $('btn-pause').hidden = !active;
     updatePauseButton();
@@ -476,7 +476,7 @@
 
   async function saveAttemptCode() {
     const c = S.current;
-    if (!c || !c.active || !c.attempt) return;
+    if (!c || !c.attempt) return; // also persists edits made after the drill unlocks (improvement loop)
     const patch = { seconds: S.elapsed || c.attempt.seconds || 0 };
     if (c.task.kind === 'dom') {
       patch.code = S.editor ? S.editor.getValue() : '';
@@ -900,7 +900,7 @@
 
   async function runCurrent() {
     const c = S.current;
-    if (!c || !c.active || S.running) return;
+    if (!c || S.running) return; // re-runs are allowed after unlock (improve → re-test loop)
     S.running = true;
     $('btn-run').disabled = true;
     try {
@@ -910,7 +910,7 @@
       renderResults({ fatal: String((e && e.message) || e), results: [] });
     } finally {
       S.running = false;
-      $('btn-run').disabled = !S.current || !S.current.active;
+      $('btn-run').disabled = !S.current;
     }
   }
 
@@ -966,7 +966,7 @@
 
   async function completeAttempt(passed) {
     const c = S.current;
-    if (!c || !c.active || !c.attempt) return;
+    if (!c || !c.attempt) return;
     c.attempt = await DBD.db.updateAttempt(c.attempt.id, {
       outcome: passed ? 'passed' : 'given_up',
       seconds: S.elapsed || 0
@@ -980,8 +980,8 @@
     updateAiPanelForTask();
     await refreshAll();
     aiLog(passed ? 'system' : 'error', passed
-      ? 'All checks passed — nice. The reference solution and an AI review are unlocked.'
-      : 'Attempt closed. The reference solution and review are unlocked whenever you want them.');
+      ? 'All checks passed — nice. The reference solution and an AI review are unlocked. Keep editing if you want to polish it — Run all tests and the review still work.'
+      : 'Attempt closed. The reference solution and review are unlocked whenever you want them — you can still fix the code and run the tests again.');
   }
 
   async function giveUp() {
@@ -1079,8 +1079,9 @@
     let bodyNode;
     const out = $('review-out');
     if (S.view === 'task' && out) {
+      // keep previous reviews — each new one appends below (improvement loop)
+      if (out.childNodes.length) out.appendChild(el('hr'));
       out.hidden = false;
-      out.innerHTML = '';
       headNode = el('div', 'dbd-pane-label', 'AI review · reviewing…');
       bodyNode = el('div', 'dbd-review-body', '…');
       out.appendChild(headNode);
@@ -1643,6 +1644,7 @@
     }
 
     $('statusline').textContent = 'booting…';
+
 
 
 
