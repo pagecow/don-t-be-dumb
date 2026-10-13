@@ -62,6 +62,7 @@
     running: false,
     runOnceBusy: false,
     paused: false,
+    onboard: null,
     booted: false,
     saveTimer: null,
     previewTimer: null
@@ -1427,6 +1428,72 @@
     });
   }
 
+  /* ------------------------------------------------------------------ *
+   *  first-run onboarding — pick the skills for the dashboard           *
+   * ------------------------------------------------------------------ */
+
+  function onboardToggleEl(name) {
+    const b = el('button', 'dbd-onboard-toggle', '');
+    b.type = 'button';
+    b.dataset.name = name;
+    b.appendChild(el('span', 'dbd-ob-check', '✓'));
+    b.appendChild(el('span', 'dbd-ob-name', name));
+    return b;
+  }
+
+  function renderOnboardSelection() {
+    const sel = (S.onboard && S.onboard.sel) || new Set();
+    document.querySelectorAll('.dbd-onboard-toggle').forEach((b) => {
+      b.classList.toggle('is-on', sel.has(b.dataset.name));
+    });
+    $('onboard-count').textContent = sel.size + ' selected';
+    $('onboard-start').disabled = sel.size === 0;
+  }
+
+  async function showOnboard() {
+    const current = await DBD.db.listSkills();
+    // Existing installs see their own dashboard pre-checked; a fresh install starts
+    // with nothing selected so the choice is deliberate.
+    S.onboard = { sel: new Set(current.map((s) => s.name)) };
+    const gridL = $('onboard-langs');
+    const gridW = $('onboard-web');
+    gridL.innerHTML = '';
+    gridW.innerHTML = '';
+    for (const s of DBD.db.seedSkills()) {
+      (s.group === 'lang' ? gridL : gridW).appendChild(onboardToggleEl(s.name));
+    }
+    renderOnboardSelection();
+    $('onboard').hidden = false;
+  }
+
+  function onOnboardToggle(e) {
+    const b = e.target && e.target.closest ? e.target.closest('.dbd-onboard-toggle') : null;
+    if (!b || !S.onboard) return;
+    const n = b.dataset.name;
+    if (S.onboard.sel.has(n)) S.onboard.sel.delete(n);
+    else S.onboard.sel.add(n);
+    renderOnboardSelection();
+  }
+
+  async function finishOnboarding() {
+    if (!S.onboard || S.onboard.sel.size === 0) return;
+    const btn = $('onboard-start');
+    btn.disabled = true;
+    try {
+      await DBD.db.applyOnboarding(Array.from(S.onboard.sel));
+    } catch (e) {
+      aiLog('error', 'Could not save your skill selection: ' + ((e && e.message) || e));
+      btn.disabled = false;
+      return;
+    }
+    const n = S.onboard.sel.size;
+    S.onboard = null;
+    $('onboard').hidden = true;
+    await refreshAll();
+    showView('dashboard');
+    aiLog('system', 'Your practice dashboard is ready — ' + n + ' skill' + (n === 1 ? '' : 's') + '. Add or remove skills any time: ＋ add in the sidebar, or click a skill to edit it.');
+  }
+
   function openSettingsModal() {
     $('set-nudge').checked = S.settings.nudgeEnabled !== false;
     $('modal-settings').hidden = false;
@@ -1482,7 +1549,7 @@
   async function resetAllData() {
     const ok = await confirmModal({
       title: 'Erase ALL data?',
-      body: 'Every drill, attempt and skill in the local database is deleted and the starter skill list is restored. This cannot be undone.',
+      body: 'Every drill, attempt and skill in the local database is deleted, and the skill picker opens so you can choose a fresh set. This cannot be undone.',
       confirmLabel: 'Erase everything',
       danger: true
     });
@@ -1490,8 +1557,9 @@
     try {
       await DBD.db.eraseAll();
       await refreshAll();
-      aiLog('system', 'All data erased. Fresh start.');
       $('modal-settings').hidden = true;
+      await showOnboard();
+      aiLog('system', 'All data erased — pick the skills for your fresh start.');
     } catch (e) {
       aiLog('error', 'Could not erase data: ' + ((e && e.message) || e));
     }
@@ -1577,6 +1645,10 @@
 
     $('btn-pause').onclick = togglePause;
     $('btn-wipe-layout').onclick = wipeLayout;
+    $('onboard-langs').addEventListener('click', onOnboardToggle);
+    $('onboard-web').addEventListener('click', onOnboardToggle);
+    $('onboard-clear').onclick = () => { if (S.onboard) { S.onboard.sel.clear(); renderOnboardSelection(); } };
+    $('onboard-start').onclick = finishOnboarding;
     wireGrip($('grip-code'));
     wireGrip($('grip-console'));
     window.addEventListener('resize', applyConsoleWidth);
@@ -1648,6 +1720,7 @@
 
 
 
+
     try {
       await DBD.db.init();
     } catch (e) {
@@ -1668,6 +1741,9 @@
 
     await loadModels();
     showView('dashboard');
+    try {
+      if (!(await DBD.db.getMeta('onboarded'))) await showOnboard();
+    } catch (e) { /* non-fatal — the dashboard still works */ }
     updateAiPanelForTask();
 
     // async probes (statusline only)

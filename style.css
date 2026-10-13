@@ -691,6 +691,83 @@ body {
 }
 .dbd-runbar .dbd-pane-label { flex: none; }
 
+/* ---------------- first-run onboarding ---------------- */
+
+.dbd-onboard {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow-y: auto;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  padding: 44px 20px 30px;
+}
+.dbd-onboard-card { width: 100%; max-width: 780px; }
+.dbd-onboard-head h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+.dbd-onboard-tag { font-size: 15px; color: var(--text-2); margin: 0 0 16px; }
+.dbd-onboard-copy { font-size: 13px; color: var(--text-2); margin: 0 0 22px; max-width: 660px; }
+.dbd-onboard-group { margin-bottom: 18px; }
+.dbd-onboard-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.dbd-onboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+}
+.dbd-onboard-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.dbd-onboard-toggle:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.dbd-onboard-toggle.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.dbd-ob-check {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  color: transparent;
+}
+.dbd-onboard-toggle.is-on .dbd-ob-check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.dbd-onboard-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  padding: 14px 0 10px;
+  background: linear-gradient(180deg, transparent, var(--bg) 38%);
+}
+
+/* the confirm dialog must always be the top layer, even over another modal */
+#modal-confirm { z-index: 999; }
+
 @media (max-width: 1150px) {
   .dbd-aside { display: none; }
 }

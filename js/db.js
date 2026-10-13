@@ -14,31 +14,37 @@
 
   const SEED_VERSION = 2;
 
-  // Default skills. Only JavaScript/TypeScript can be EXECUTED by the in-app runner and
-  // HTML/CSS can be rendered — every other language is practised through code-reading
-  // quizzes (the drill generator is told to do this in js/ai.js).
+  // Default skills shown on the ONBOARDING screen — the user picks which ones to start
+  // with (nothing is pre-created on a fresh install). Fourth field = onboarding group.
+  // Only JavaScript/TypeScript can be EXECUTED by the in-app runner and HTML/CSS can be
+  // rendered — every other language is practised through code-reading quizzes
+  // (the drill generator is told to do this in js/ai.js).
   const SEED_SKILLS = [
-    ['JavaScript', 'rusty', 'Core language: closures, prototypes, async/await, iterators.'],
-    ['TypeScript', 'rusty', 'Types, generics, narrowing, utility types.'],
-    ['React', 'rusty', 'Hooks, state design, rendering behavior.'],
-    ['Node.js', 'rusty', 'Streams, the event loop, modules, async patterns.'],
-    ['HTML', 'rusty', 'Semantics, forms, accessibility basics.'],
-    ['CSS', 'rusty', 'Flexbox, grid, specificity, responsive design.'],
-    ['React Native (Expo)', 'rusty', 'Core components, styling, navigation, Expo APIs.'],
-    ['Python', 'rusty', 'Strings, dicts, comprehensions, generators, decorators, classes.'],
-    ['Java', 'rusty', 'Collections, generics, streams, exceptions, OOP design.'],
-    ['C#', 'rusty', 'LINQ, generics, async/await, records, OOP.'],
-    ['C', 'rusty', 'Pointers, memory, strings, structs, the preprocessor.'],
-    ['C++', 'rusty', 'RAII, templates, STL, move semantics.'],
-    ['Go', 'rusty', 'Goroutines, channels, interfaces, error handling.'],
-    ['Rust', 'rusty', 'Ownership, borrowing, enums, traits, error handling.'],
-    ['SQL', 'rusty', 'Joins, aggregation, window functions, indexes, transactions.'],
-    ['PHP', 'rusty', 'Arrays, strings, classes, PDO, modern PHP patterns.'],
-    ['Ruby', 'rusty', 'Blocks, enumerables, modules, metaprogramming basics.'],
-    ['Swift', 'rusty', 'Optionals, closures, protocols, value semantics.'],
-    ['Kotlin', 'rusty', 'Null safety, data classes, coroutines, extension functions.'],
-    ['Bash', 'rusty', 'Pipes, redirection, conditionals, parameter expansion.']
+    ['JavaScript', 'rusty', 'Core language: closures, prototypes, async/await, iterators.', 'lang'],
+    ['TypeScript', 'rusty', 'Types, generics, narrowing, utility types.', 'lang'],
+    ['Python', 'rusty', 'Strings, dicts, comprehensions, generators, decorators, classes.', 'lang'],
+    ['Java', 'rusty', 'Collections, generics, streams, exceptions, OOP design.', 'lang'],
+    ['C#', 'rusty', 'LINQ, generics, async/await, records, OOP.', 'lang'],
+    ['C', 'rusty', 'Pointers, memory, strings, structs, the preprocessor.', 'lang'],
+    ['C++', 'rusty', 'RAII, templates, STL, move semantics.', 'lang'],
+    ['Go', 'rusty', 'Goroutines, channels, interfaces, error handling.', 'lang'],
+    ['Rust', 'rusty', 'Ownership, borrowing, enums, traits, error handling.', 'lang'],
+    ['PHP', 'rusty', 'Arrays, strings, classes, PDO, modern PHP patterns.', 'lang'],
+    ['Ruby', 'rusty', 'Blocks, enumerables, modules, metaprogramming basics.', 'lang'],
+    ['Swift', 'rusty', 'Optionals, closures, protocols, value semantics.', 'lang'],
+    ['Kotlin', 'rusty', 'Null safety, data classes, coroutines, extension functions.', 'lang'],
+    ['SQL', 'rusty', 'Joins, aggregation, window functions, indexes, transactions.', 'lang'],
+    ['Bash', 'rusty', 'Pipes, redirection, conditionals, parameter expansion.', 'lang'],
+    ['HTML', 'rusty', 'Semantics, forms, accessibility basics.', 'web'],
+    ['CSS', 'rusty', 'Flexbox, grid, specificity, responsive design.', 'web'],
+    ['React', 'rusty', 'Hooks, state design, rendering behavior.', 'web'],
+    ['Node.js', 'rusty', 'Streams, the event loop, modules, async patterns.', 'web'],
+    ['React Native (Expo)', 'rusty', 'Core components, styling, navigation, Expo APIs.', 'web']
   ];
+
+  function seedSkills() {
+    return SEED_SKILLS.map((s) => ({ name: s[0], level: s[1], notes: s[2], group: s[3] || 'web' }));
+  }
 
   const SCHEMA = [
     `CREATE TABLE IF NOT EXISTS skills (
@@ -106,7 +112,8 @@
     const n = rows && rows[0] ? rows[0].n : 0;
     const v = Number(await getMeta('skills_seed')) || 0;
     if (!n) {
-      await insertSeedSkills();
+      // Fresh install — nothing is pre-created; the onboarding screen asks which
+      // skills to start with and applyOnboarding() inserts them.
       await setMeta('skills_seed', SEED_VERSION);
     } else if (v < SEED_VERSION) {
       // v1 → v2: Next.js and Tailwind CSS were retired as defaults and many more
@@ -301,14 +308,35 @@
     await exec('DELETE FROM attempts');
     await exec('DELETE FROM tasks');
     await exec('DELETE FROM skills');
-    await insertSeedSkills();
-    await setMeta('skills_seed', SEED_VERSION);
+    await exec('DELETE FROM meta'); // also clears "onboarded" — the picker shows again
+  }
+
+  // The onboarding picker: end up with exactly the skills the user selected.
+  // Missing selections are inserted from the seed (default level + notes); seed
+  // skills the user left unchecked are removed from the dashboard (their drill
+  // history is untouched and they can be added again any time).
+  async function applyOnboarding(names) {
+    const seeds = new Map(SEED_SKILLS.map((s) => [s[0], s]));
+    const current = await listSkills();
+    const cur = new Set(current.map((s) => s.name));
+    const sel = new Set(names);
+    for (const n of sel) {
+      if (cur.has(n)) continue;
+      const s = seeds.get(n);
+      await exec('INSERT INTO skills (name, level, notes, created_at) VALUES (?, ?, ?, ?)',
+        [n, s ? s[1] : 'rusty', s ? s[2] : '', nowIso()]);
+    }
+    for (const s of current) {
+      if (seeds.has(s.name) && !sel.has(s.name)) await deleteSkill(s.id);
+    }
+    await setMeta('onboarded', '1');
   }
 
   DBD.db = {
     NAME, init,
     isReady() { return ready; },
     query, exec,
+    getMeta, setMeta, seedSkills, applyOnboarding,
     listSkills, getSkill, addSkill, updateSkill, deleteSkill, notePractice,
     insertTask, getTask, listRecentTasks, listPreviousBriefs, countTasks, findByFingerprint,
     createAttempt, getAttempt, latestAttemptForTask, latestOpenAttemptForTask, updateAttempt,

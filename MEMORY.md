@@ -51,3 +51,15 @@ Durable lessons recorded by coding agents working in this project. The engine re
 - Reviews stream into #review-out in the console column while in a task (AI panel is hidden there).
 - preview_check flakes to expect: an occasional false BLANK frame during the ~1s typescript.js parse; re-run.
 - Verified end-to-end signature: `booted=ok view=ok fullH=ok(754/800) btns=ok timerH=ok(1:02:05) grip=ok(400→560) cmt=ok reviewOut=ok pause=ok(1:02:05)`. (A second run showed grip=BAD(560→580) only because the first run persisted consoleWidth=580 and 560→580 hit the window-edge clamp.)
+
+## 2026-10-13 11:23:40
+
+## v1.4.0 — improvement loop, seed v2 (multi-language), DB forensics
+
+- The drill workspace now stays fully live after unlock: `runCurrent()` no longer gates on `c.active`, `$('btn-run').disabled` stays false, `saveAttemptCode()` persists edits when `!c.active` (removed that guard), and `completeAttempt()` dropped its `!c.active` guard so a green re-run upgrades the attempt to passed (never downgrades — non-passing runs just refresh results). Multiple AI reviews append into #review-out (hr separators) instead of replacing.
+- Seed v2 in db.js: `SEED_VERSION` + a `meta` table (`INSERT OR REPLACE`), init() migrates v1→v2 (deletes Next.js/Tailwind ONLY when pristine: practice_count=0, last_practiced_at NULL, unchanged seed notes; then `insertSeedSkills()` inserts any missing seed by name via `INSERT … SELECT … WHERE NOT EXISTS`). 20 default skills now: JS, TS, React, Node, HTML, CSS, Expo, Python, Java, C#, C, C++, Go, Rust, SQL, PHP, Ruby, Swift, Kotlin, Bash.
+- ai.js: the generator prompt now has an EXECUTABLE VS WRITTEN LANGUAGES section — only JS/TS ("code"/"bug") and HTML+CSS ("dom") can run; every other language/framework must be kind "quiz" with one self-contained 6-15 line snippet in quiz.question (predict output / spot the bug / pick the idiom), and a requested runnable kind for an unrunnable language is silently swapped to quiz.
+- 🔴 DB forensics path: `~/Library/Application Support/com.chatoss.desktop/app-dbs/<app-id>/dont_be_dumb.db` (app id here: dev.tjmccarty.dont-be-dumb). Readable with plain sqlite3 while ChatOSS runs (WAL). Use it to VERIFY selftest cleanliness instead of guessing.
+- 🔴 Selftest rollback pattern that worked: snapshot the affected skill row (last_practiced_at/practice_count/pass_count), run with a temp task (DELETE rows afterwards), then restore the skill row with a direct UPDATE. Verified against the real DB afterwards — counters matched to the microsecond.
+- Test-data gotcha: for a case-transform drill, `(''.toUpperCase()) === ''.toLowerCase()` — the empty-string case passes either way; choose data that actually flips between the wrong and right implementations.
+- Verified end-to-end signature: `booted=ok seed=ok(20) pass=ok editSave=ok rerun=ok(passed, no downgrade) loop=ok`.

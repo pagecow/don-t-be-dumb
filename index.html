@@ -7,6 +7,37 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+<!-- ============ FIRST-RUN ONBOARDING (pick your skills) ============ -->
+<section class="dbd-onboard" id="onboard" hidden>
+  <div class="dbd-onboard-card">
+    <div class="dbd-onboard-head">
+      <h1>Don't Be Dumb</h1>
+      <p class="dbd-onboard-tag">Pick what you want to keep sharp.</p>
+    </div>
+    <p class="dbd-onboard-copy">
+      Choose the languages and frameworks for your practice dashboard — every drill is written fresh
+      for you and rotated so nothing rots. You stay in charge: <strong>＋ add</strong> in the sidebar
+      adds a skill any time, and clicking any skill lets you change its level, edit the notes the
+      drill author reads, or take it off the dashboard again. Nothing here is permanent.
+    </p>
+    <div class="dbd-onboard-group">
+      <div class="dbd-onboard-label">Languages</div>
+      <div class="dbd-onboard-grid" id="onboard-langs"></div>
+    </div>
+    <div class="dbd-onboard-group">
+      <div class="dbd-onboard-label">Web platform &amp; frameworks</div>
+      <div class="dbd-onboard-grid" id="onboard-web"></div>
+    </div>
+    <div class="dbd-onboard-foot">
+      <span class="hint" id="onboard-count">0 selected</span>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost btn-sm" id="onboard-clear">Clear all</button>
+      <button class="btn btn-primary" id="onboard-start" disabled>Start practising →</button>
+    </div>
+  </div>
+</section>
+
 <div class="dbd-shell" id="shell">
 
   <!-- ===================== HOME SCREEN ===================== -->
@@ -211,19 +242,6 @@
 </div>
 
 <!-- ============ MODALS ============ -->
-<div class="overlay" id="modal-confirm" hidden>
-  <div class="modal dbd-modal">
-    <div class="modal-head"><strong id="confirm-title">Are you sure?</strong>
-      <button class="modal-close" id="confirm-x" aria-label="Close">×</button>
-    </div>
-    <div class="modal-body" id="confirm-body">…</div>
-    <div class="modal-foot">
-      <button class="btn" id="confirm-cancel">Cancel</button>
-      <button class="btn btn-primary" id="confirm-ok">Confirm</button>
-    </div>
-  </div>
-</div>
-
 <div class="overlay" id="modal-skill" hidden>
   <div class="modal dbd-modal">
     <div class="modal-head"><strong id="skill-modal-title">Add skill</strong>
@@ -288,6 +306,21 @@
     <div class="modal-foot">
       <div class="spacer"></div>
       <button class="btn btn-primary" id="settings-close">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- The confirm dialog sits LAST in the DOM (and is z-indexed above the other modals)
+     so a confirmation opened from inside another modal is always the visible top layer. -->
+<div class="overlay" id="modal-confirm" hidden>
+  <div class="modal dbd-modal">
+    <div class="modal-head"><strong id="confirm-title">Are you sure?</strong>
+      <button class="modal-close" id="confirm-x" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="confirm-body">…</div>
+    <div class="modal-foot">
+      <button class="btn" id="confirm-cancel">Cancel</button>
+      <button class="btn btn-primary" id="confirm-ok">Confirm</button>
     </div>
   </div>
 </div>
