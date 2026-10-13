@@ -82,7 +82,8 @@
     '- Easy = one concept, obvious approach, warm-up. Medium = 2-3 concepts or a subtle edge case. Hard = tricky tradeoffs, careful edge cases, or optimization.',
     '- The prompt field is the ONLY thing the developer sees before solving — make it complete and unambiguous, in a calm, friendly tone.',
     '- Code comments in starter/solution should be sparse and professional.',
-    '- For quiz drills in a non-JS language: the skill field must match the requested skill exactly (e.g. "Python"), and the language of the snippet must match it.'
+    '- For quiz drills in a non-JS language: the skill field must match the requested skill exactly (e.g. "Python"), and the language of the snippet must match it.',
+    '- Keep the whole JSON object compact — concise strings, no boilerplate — so the reply comfortably fits and can never be cut off mid-object.'
   ].join('\n');
 
   const REVIEW_SYSTEM = [
@@ -164,18 +165,28 @@
   function pickText(r) {
     if (!r) return '';
     if (typeof r === 'string') return r;
+    if (typeof r.text === 'string' && r.text) return r.text;
     if (typeof r.content === 'string') return r.content;
     if (r.message && typeof r.message.content === 'string') return r.message.content;
+    if (r.message && typeof r.message.text === 'string' && r.message.text) return r.message.text;
     if (Array.isArray(r.content)) {
-      return r.content.map((c) => (typeof c === 'string' ? c : (c && typeof c.text === 'string' ? c.text : ''))).join('\n');
+      // join with '' — content parts can be fragments of one reply, and an injected
+      // newline inside a JSON string would corrupt it (the join must not add characters)
+      return r.content.map((c) => (typeof c === 'string' ? c : (c && typeof c.text === 'string' ? c.text : ''))).join('');
     }
     if (Array.isArray(r.messages)) {
       for (let i = r.messages.length - 1; i >= 0; i--) {
         const m = r.messages[i];
-        if (m && m.role === 'assistant' && typeof m.content === 'string') return m.content;
+        if (m && m.role === 'assistant') {
+          if (typeof m.content === 'string') return m.content;
+          if (Array.isArray(m.content)) {
+            return m.content.map((c) => (typeof c === 'string' ? c : (c && typeof c.text === 'string' ? c.text : ''))).join('');
+          }
+        }
       }
     }
     if (r.finalMessage && typeof r.finalMessage.content === 'string') return r.finalMessage.content;
+    if (r.finalMessage && typeof r.finalMessage.text === 'string') return r.finalMessage.text;
     return '';
   }
 
@@ -291,34 +302,81 @@
    * ------------------------------------------------------------------ */
 
   async function generateTask(opts) {
-    // opts: { model, skills, previous, request: {skill, difficulty, kind, note}, onStream }
-    const messages = [
+    // opts: { model, skills, previous, request: {skill, difficulty, kind, note}, onStream, onStatus }
+    // Generation must never dead-end: up to 3 rounds — straight call, a repair round that
+    // shows the model exactly what was wrong, then a strict fresh call. Either of the two
+    // captured buffers (final text or streamed tokens) may be used, whichever parses.
+    const base = [
       { role: 'system', content: GENERATOR_SYSTEM },
       { role: 'user', content: buildGenUser(opts) }
     ];
-    const first = await runStreamed(opts.model, messages, opts.onStream);
-    let obj = extractJson(first.text);
-    let problem = validateTask(obj);
+    // opts.__run is an internal test seam (used by the boot self-test); production always
+    // uses the real streaming chat call.
+    const runIt = (typeof opts.__run === 'function') ? opts.__run : runStreamed;
 
-    if (problem) {
-      // One repair round: tell the model exactly what was wrong.
-      const repair = [
-        { role: 'system', content: GENERATOR_SYSTEM },
-        { role: 'user', content: buildGenUser(opts) },
-        { role: 'assistant', content: String(first.text).slice(0, 4000) },
-        { role: 'user', content: 'That reply was rejected: ' + problem + '. Respond again with ONLY a single valid JSON object that fixes this. No fences, no commentary.' }
-      ];
-      const second = await runStreamed(opts.model, repair, opts.onStream);
-      obj = extractJson(second.text);
-      problem = validateTask(obj);
-      if (problem) {
-        const err = new Error('The AI reply could not be used: ' + problem);
-        err.raw = String(second.text).slice(0, 2000);
-        throw err;
+    let lastRaw = '';
+    let lastProblem = 'the model returned an empty reply';
+
+    for (let round = 1; round <= 3; round++) {
+      if (opts.onStatus) {
+        try { opts.onStatus(round, lastProblem); } catch (e) { /* ignore */ }
       }
-      return { task: obj, raw: second.text };
+      let messages = base;
+      if (round === 2) {
+        const truncated = lastProblem === 'reply was not a JSON object' && lastRaw.length > 6500;
+        messages = base.concat([
+          { role: 'assistant', content: String(lastRaw).slice(0, 6000) },
+          {
+            role: 'user',
+            content: 'That reply was rejected: ' + lastProblem
+              + (truncated ? ' (it looks like it was cut off or wrapped in extra text)' : '')
+              + '. Respond again with ONLY a single valid JSON object that fixes this. No markdown fences, no commentary before or after, and keep every field compact so the reply cannot be cut off.'
+          }
+        ]);
+      } else if (round === 3) {
+        messages = [
+          {
+            role: 'system',
+            content: GENERATOR_SYSTEM + '\n\nFINAL ATTEMPT — STRICT OUTPUT: reply with nothing but the raw JSON object. No markdown fences, no commentary, no leading or trailing text. Keep the entire object compact (target well under 1200 tokens).'
+          },
+          { role: 'user', content: buildGenUser(opts) }
+        ];
+      }
+
+      let r;
+      try {
+        r = await runIt(opts.model, messages, opts.onStream);
+      } catch (e) {
+        lastRaw = '';
+        lastProblem = 'the model call failed (' + ((e && e.message) || e) + ')';
+        continue;
+      }
+      lastRaw = r.text || r.streamed || '';
+      const got = acceptReply(r);
+      if (got.task) return { task: got.task, raw: lastRaw, rounds: round };
+      lastProblem = got.problem || 'the reply could not be parsed';
     }
-    return { task: obj, raw: first.text };
+
+    const err = new Error('The AI reply could not be used after 3 attempts: ' + lastProblem);
+    err.raw = String(lastRaw).slice(0, 2000);
+    throw err;
+  }
+
+  // Try to turn one model reply into a validated task. Both the assembled text and the
+  // streamed token buffer are candidates (they can differ — one may be truncated).
+  function acceptReply(r) {
+    const cands = [];
+    if (r.text) cands.push(r.text);
+    if (r.streamed && r.streamed !== r.text) cands.push(r.streamed);
+    if (!cands.length) return { task: null, problem: 'the model returned an empty reply' };
+    let problem = 'reply was not a JSON object';
+    for (const c of cands) {
+      const obj = extractJson(c);
+      const p = validateTask(obj);
+      if (!p) return { task: obj, problem: null };
+      if (p !== 'reply was not a JSON object') problem = p; // keep the most informative problem
+    }
+    return { task: null, problem };
   }
 
   async function reviewAttempt(opts) {
@@ -342,6 +400,7 @@
     validateTask,
     fingerprintOf,
     daysSince,
-    pickText
+    pickText,
+    acceptReply
   };
 })();

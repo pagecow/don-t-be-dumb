@@ -1232,6 +1232,12 @@
           onStream: (txt) => {
             seen = txt.length;
             draft.textContent = txt.slice(-1600);
+          },
+          onStatus: (round, problem) => {
+            if (round > 1) {
+              draft.textContent = '… reply unusable (' + problem + ') — retrying, attempt ' + round + ' of 3…';
+              setGenStatus('retrying (' + round + '/3)…');
+            }
           }
         });
         return task;
@@ -1716,6 +1722,7 @@
     }
 
     $('statusline').textContent = 'booting…';
+
 
 
 

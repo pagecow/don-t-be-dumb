@@ -63,3 +63,12 @@ Durable lessons recorded by coding agents working in this project. The engine re
 - 🔴 Selftest rollback pattern that worked: snapshot the affected skill row (last_practiced_at/practice_count/pass_count), run with a temp task (DELETE rows afterwards), then restore the skill row with a direct UPDATE. Verified against the real DB afterwards — counters matched to the microsecond.
 - Test-data gotcha: for a case-transform drill, `(''.toUpperCase()) === ''.toLowerCase()` — the empty-string case passes either way; choose data that actually flips between the wrong and right implementations.
 - Verified end-to-end signature: `booted=ok seed=ok(20) pass=ok editSave=ok rerun=ok(passed, no downgrade) loop=ok`.
+
+## 2026-10-13 11:46:53
+
+## v1.5.0 — first-run skill picker + modal stacking fix
+
+- Onboarding: `meta.onboarded` gates a full-screen picker (#onboard, fixed overlay z-40, styles in the `.dbd-onboard*` block). boot() calls showOnboard() when the flag is unset; showOnboard pre-checks `listSkills()` names (fresh install → nothing pre-checked; existing install → their own set, once); finishOnboarding → `DBD.db.applyOnboarding(names)` (inserts missing from seed w/ default notes, deletes unchecked SEED skills only — never custom ones; sets onboarded=1) → refreshAll + showView. Fresh installs now seed NO skills (init only sets skills_seed); eraseAll deletes meta too (no reseed) and resetAllData re-opens the picker. SEED_SKILLS entries gained a 4th field ('lang'|'web') for the two picker groups; `DBD.db.seedSkills()` returns {name, level, notes, group}. insertSeedSkills() is still used by the v1→v2 migration only.
+- 🔴 Modal stacking bug (user-reported): a confirm opened from inside another modal rendered BEHIND it because #modal-confirm was FIRST in the DOM (same .overlay z-index → later DOM wins). Fix: modal-confirm moved LAST in body + `#modal-confirm { z-index: 999; }`. Verify with: body-children index order + getComputedStyle z-index.
+- Fun forensic detail: the user had "successfully" deleted skill "C" through the invisible confirm (focus + Enter) — DB went 20 → 19 skills. The fix makes that flow actually visible.
+- Verification signature this round: picker renders 20 toggle options (`toggles.length === 20`), pre-checked count == number of DB skills (19), toggles move the count (18/19), `modal=ok(z999)`.
